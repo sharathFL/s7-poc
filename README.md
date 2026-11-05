@@ -24,6 +24,8 @@ $env:S7POC_MOCK="true"; docker compose up --build
 Remove-Item Env:S7POC_MOCK; docker compose up --build
 ```
 
+Without Docker (Python only, Windows): `.\run-windows.ps1 -Mock` or `.\run-windows.ps1`.
+
 Dashboards: <http://localhost:8001> (Python), <http://localhost:8002> (Go). API docs for Python:
 <http://localhost:8001/docs>. Run one only: `docker compose up --build python` or `... go`.
 Stop: `docker compose down`.
