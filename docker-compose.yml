@@ -1,0 +1,42 @@
+# docker compose up --build                       -> Python (:8001) + Go (:8002), config/devices.yaml (real PLC)
+# S7POC_MOCK=true docker compose up --build       -> simulated data, no PLC needed
+# CONFIG_FILE=devices.sim.yaml docker compose --profile sim up --build
+#                                                 -> real OPC UA drivers vs a generic OPC UA test server
+# Run only one implementation:  docker compose up --build python   |   docker compose up --build go
+x-common: &common
+  restart: unless-stopped
+  volumes:
+    - ./config:/config:ro
+    - ./secrets:/secrets:ro
+  environment:
+    CONFIG_PATH: /config/${CONFIG_FILE:-devices.yaml}
+    S7POC_MOCK: ${S7POC_MOCK:-false}
+    LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    # Secrets: set in .env or the shell, never in YAML. Empty => anonymous.
+    OPCUA_USERNAME: ${OPCUA_USERNAME:-}
+    OPCUA_PASSWORD: ${OPCUA_PASSWORD:-}
+
+services:
+  python:
+    <<: *common
+    build: {context: ., dockerfile: python/Dockerfile}
+    image: s7poc-python
+    ports: ["8001:8001"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:8001/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  go:
+    <<: *common
+    build: {context: ., dockerfile: go/Dockerfile}
+    image: s7poc-go
+    ports: ["8002:8002"]
+
+  opcua-sim:
+    profiles: [sim]
+    build: {context: ., dockerfile: python/Dockerfile}
+    image: s7poc-python
+    command: ["python", "tools/opcua_sim.py"]
+    restart: unless-stopped

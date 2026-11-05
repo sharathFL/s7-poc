@@ -1,0 +1,60 @@
+# Shared by the Python and Go implementations.
+# Secrets (passwords, private keys) are NOT stored here: see README "Secrets".
+# Set `mock: true` (or env S7POC_MOCK=true) to run with simulated data and no PLC.
+
+api:
+  stale_after_factor: 3     # reading older than factor * polling_ms => quality STALE
+  history_size: 500         # readings kept in memory per tag per protocol
+
+devices:
+  - id: s7_1500_01
+    ip: 192.168.1.10        # <-- CHANGE to your PLC address
+    mock: false
+
+    s7comm:
+      enabled: true
+      rack: 0               # S7-1500: rack 0, slot 1 (use slot 0 if connection is refused)
+      slot: 1
+      port: 102
+      polling_ms: 1000
+      timeout_ms: 3000
+
+    opcua:
+      enabled: true
+      endpoint: opc.tcp://192.168.1.10:4840   # <-- CHANGE
+      polling_ms: 1000
+      timeout_ms: 4000
+      mode: poll                 # poll | subscribe   (subscribe: Python only)
+      # Start with None to prove connectivity, then switch to a secure policy.
+      security_mode: None        # None | Sign | SignAndEncrypt
+      security_policy: None      # None | Basic256Sha256 | Aes128_Sha256_RsaOaep | ...
+      # Credentials come from env OPCUA_USERNAME / OPCUA_PASSWORD (see README).
+      # Client certificate + key: files under ./secrets mounted at /secrets
+      client_cert: /secrets/client_cert.der
+      client_key: /secrets/client_key.pem
+      # server_cert: /secrets/server_cert.der   # optional pin
+
+    # Addresses assume a NON-OPTIMIZED data block DB10. Confirm against your DB layout.
+    # opcua_node: S7-1500 uses  ns=3;s="<DBName>"."<Variable>"  (namespace index varies!
+    # use GET /opcua/browse to discover the real ids).
+    tags:
+      - name: Temperature
+        type: REAL
+        s7_address: DB10.DBD0
+        opcua_node: 'ns=3;s="PocData"."Temperature"'
+      - name: Pressure
+        type: REAL
+        s7_address: DB10.DBD4
+        opcua_node: 'ns=3;s="PocData"."Pressure"'
+      - name: MotorSpeed
+        type: REAL
+        s7_address: DB10.DBD8
+        opcua_node: 'ns=3;s="PocData"."MotorSpeed"'
+      - name: MotorRunning
+        type: BOOL
+        s7_address: DB10.DBX12.0
+        opcua_node: 'ns=3;s="PocData"."MotorRunning"'
+      - name: ProductionCount
+        type: DINT
+        s7_address: DB10.DBD14
+        opcua_node: 'ns=3;s="PocData"."ProductionCount"'

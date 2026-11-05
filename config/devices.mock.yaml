@@ -1,0 +1,14 @@
+# Fully simulated: no PLC needed. Both protocols are MOCK drivers.
+api: {stale_after_factor: 3, history_size: 500}
+devices:
+  - id: mock_plc_01
+    ip: 127.0.0.1
+    mock: true
+    s7comm: {enabled: true, polling_ms: 1000}
+    opcua:  {enabled: true, polling_ms: 1000, endpoint: "opc.tcp://mock:4840"}
+    tags:
+      - {name: Temperature,     type: REAL, s7_address: DB10.DBD0,   opcua_node: 'ns=2;s=Temperature'}
+      - {name: Pressure,        type: REAL, s7_address: DB10.DBD4,   opcua_node: 'ns=2;s=Pressure'}
+      - {name: MotorSpeed,      type: REAL, s7_address: DB10.DBD8,   opcua_node: 'ns=2;s=MotorSpeed'}
+      - {name: MotorRunning,    type: BOOL, s7_address: DB10.DBX12.0, opcua_node: 'ns=2;s=MotorRunning'}
+      - {name: ProductionCount, type: DINT, s7_address: DB10.DBD14,  opcua_node: 'ns=2;s=ProductionCount'}

@@ -1,0 +1,15 @@
+# Real drivers (snap7/asyncua, plc4go/gopcua) against the generic OPC UA test server
+# from the `sim` compose profile. This is NOT an S7-1500 emulation and offers no S7comm
+# endpoint, so S7comm is disabled here.
+api: {stale_after_factor: 3, history_size: 500}
+devices:
+  - id: opcua_sim_01
+    ip: opcua-sim
+    s7comm: {enabled: false}
+    opcua: {enabled: true, endpoint: "opc.tcp://opcua-sim:4840", polling_ms: 1000, mode: poll, security_mode: None, security_policy: None}
+    tags:
+      - {name: Temperature,     type: REAL, s7_address: DB10.DBD0,   opcua_node: 'ns=2;s=Temperature'}
+      - {name: Pressure,        type: REAL, s7_address: DB10.DBD4,   opcua_node: 'ns=2;s=Pressure'}
+      - {name: MotorSpeed,      type: REAL, s7_address: DB10.DBD8,   opcua_node: 'ns=2;s=MotorSpeed'}
+      - {name: MotorRunning,    type: BOOL, s7_address: DB10.DBX12.0, opcua_node: 'ns=2;s=MotorRunning'}
+      - {name: ProductionCount, type: DINT, s7_address: DB10.DBD14,  opcua_node: 'ns=2;s=ProductionCount'}
