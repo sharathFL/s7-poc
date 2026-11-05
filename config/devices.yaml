@@ -8,7 +8,7 @@ api:
 
 devices:
   - id: s7_1500_01
-    ip: 192.168.1.10        # <-- CHANGE to your PLC address
+    ip: 192.168.0.1         # PLC address (Ethernet 3 on the Windows host)
     mock: false
 
     s7comm:
@@ -21,7 +21,7 @@ devices:
 
     opcua:
       enabled: true
-      endpoint: opc.tcp://192.168.1.10:4840   # <-- CHANGE
+      endpoint: opc.tcp://192.168.0.1:4840
       polling_ms: 1000
       timeout_ms: 4000
       mode: poll                 # poll | subscribe   (subscribe: Python only)
