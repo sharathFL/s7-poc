@@ -67,40 +67,6 @@ func ToPlc4xAddress(addr, typ string) string {
 	return a
 }
 
-func (s *S7) Connected() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.conn != nil && s.conn.IsConnected()
-}
-
-func (s *S7) url() string {
-	c := s.dev.S7
-	return fmt.Sprintf("s7://%s:%d?cotp.remote-rack=%d&cotp.remote-slot=%d&read-timeout-ms=%d&cotp.connect-timeout-ms=%d&cotp.handshake-timeout-ms=%d",
-		s.dev.IP, c.Port, c.Rack, *c.Slot, c.TimeoutMS, c.TimeoutMS, c.TimeoutMS)
-}
-
-// ToPlc4xAddress converts "DB10.DBD0"/"DB10.DBX12.0" + type into PLC4X syntax "%DB10.DBD0:REAL".
-// Fixed-length strings are written "STRING[20]" in the config; plc4go now wants the length as a
-// range before the type: "%DB7.DBB6[0..19]:STRING".
-var sizedType = regexp.MustCompile(`^(W?STRING)\[(\d+)\]$`)
-
-func ToPlc4xAddress(addr, typ string) string {
-	a := strings.TrimSpace(addr)
-	if !strings.HasPrefix(a, "%") {
-		a = "%" + a
-	}
-	if !strings.Contains(a, ":") {
-		t := strings.ToUpper(strings.TrimSpace(typ))
-		if m := sizedType.FindStringSubmatch(t); m != nil {
-			if n, err := strconv.Atoi(m[2]); err == nil && n > 0 {
-				return fmt.Sprintf("%s[0..%d]:%s", a, n-1, m[1])
-			}
-		}
-		a += ":" + t
-	}
-	return a
-}
-
 func (s *S7) Connect(ctx context.Context) error {
 	s.Close()
 	dm := plc4go.NewPlcDriverManager()
