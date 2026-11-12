@@ -38,6 +38,7 @@ svg text{fill:var(--mut);font-size:11px;font-variant-numeric:tabular-nums}
 .tip{position:absolute;pointer-events:none;background:var(--card);border:1px solid var(--bd);border-radius:6px;padding:6px 8px;font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,.15);display:none;z-index:2;white-space:nowrap}
 .tip .t{color:var(--mut);margin-bottom:2px}.tip .r{display:flex;gap:6px;align-items:center}.tip b{font-size:13px;color:var(--fg)}
 .empty{height:120px;display:flex;align-items:center;justify-content:center;color:var(--mut)}
+.sect{font-size:14px;margin:8px 0 -4px;color:var(--fg2)}.st table{font-size:12px;margin-top:6px}.st th,.st td{padding:3px 8px}.area{stroke:none}.a0{fill:var(--c1)}.a1{fill:var(--c2)}.a2{fill:var(--c3)}
 ul{margin:0;padding-left:18px}li{margin:2px 0}
 </style></head><body>
 <header><h1>S7 PoC &middot; OPC UA vs Snap7 S7comm vs PLC4X S7comm <span id="upd" class="small mut"></span></h1>
@@ -52,6 +53,8 @@ ul{margin:0;padding-left:18px}li{margin:2px 0}
   <thead><tr><th>Tag</th><th><span class="key k1"></span>OPC UA</th><th><span class="key k2"></span>Snap7</th><th><span class="key k3"></span>PLC4X</th><th>Spread</th><th>Skew</th><th>Result</th></tr></thead>
   <tbody id="tags"></tbody></table></div><p class="small mut" id="note"></p></section>
  <div class="grid2" id="charts"></div>
+ <h2 class="sect">Distributions <span class="small mut">over the selected window</span></h2>
+ <div class="grid2" id="dists"></div>
  <section class="card"><h2>Agreement over the window (sample-aligned pairs)</h2><div class="wrap"><table id="agree"></table></div>
   <p class="small mut">Each sample is compared with the nearest sample of the other protocol within 1.5 s. Match = within tolerance. &Delta; = mean absolute difference. Counters and ramps move between samples, so small non-zero &Delta; is expected.</p></section>
  <section class="card"><h2>Communication errors</h2><ul id="errs" class="small"></ul></section>
@@ -210,6 +213,9 @@ function tableEl(vis,spec){
     if(any)b.appendChild(tr)}
   t.appendChild(b);return t;
 }
+function devPts(c,cur){
+  const ref=(ST.opcua.tags[cur]||[]).filter(x=>x.q==="GOOD");
+  return (ST[c.id].tags[cur]||[]).filter(p=>p.q==="GOOD"&&num(p.v)).map(p=>{const r=nearest(ref,p.t,ALIGN_MS);return r&&num(r.v)?{t:p.t,v:p.v-r.v}:null}).filter(Boolean)}
 function charts(){
   const L=COLS.map(c=>({name:c.label,n:c.n,pts:ST[c.id].lat.map(p=>({t:p.t,v:p.ms}))}));
   draw("lat","Read latency","Round-trip time of each poll cycle (ms). Lower is better.",{series:L,zero:true,unit:"Milliseconds.",fmt:v=>v.toFixed(2)+" ms"});
@@ -220,11 +226,10 @@ function charts(){
   }
   if(nt.length){
     const sel=$("dtag");let cur=sel&&sel.value&&nt.includes(sel.value)?sel.value:nt[0];
-    const ref=ST.opcua.tags[cur]||[];
-    const dv=c=>({name:c.label+" − OPC UA",n:c.n,pts:(ST[c.id].tags[cur]||[]).filter(p=>p.q==="GOOD"&&num(p.v)).map(p=>{const r=nearest(ref.filter(x=>x.q==="GOOD"),p.t,ALIGN_MS);return r&&num(r.v)?{t:p.t,v:p.v-r.v}:null}).filter(Boolean)});
+    const dv=c=>({name:c.label+" − OPC UA",n:c.n,pts:devPts(c,cur)});
     draw("dev","Difference from OPC UA",`Snap7 and PLC4X minus the nearest OPC UA sample (≤1.5 s), tag: ${cur}.`,{series:[dv(COLS[1]),dv(COLS[2])],zeroLine:true,unit:"Difference.",fmt:v=>v.toFixed(3)});
     const o=CH.dev,s=o.card.querySelector(".sub");
-    if(!$("dtag")){const x=document.createElement("select");x.id="dtag";x.style.marginLeft="8px";s.after(x);x.onchange=()=>charts()}
+    if(!$("dtag")){const x=document.createElement("select");x.id="dtag";x.style.marginLeft="8px";s.after(x);x.onchange=()=>{charts();dists()}}
     const x=$("dtag");if(x.dataset.k!==nt.join("|")){x.innerHTML=nt.map(t=>`<option>${esc(t)}</option>`).join("");x.dataset.k=nt.join("|")}
     x.value=cur;
   }
@@ -250,20 +255,100 @@ function errors(){
   $("errs").innerHTML=e.length?e.map(x=>`<li><span class="mut">${esc(hms(Date.parse(x.time)))}</span> <b>${esc(x.col)}</b> ${esc(x.message)}</li>`).join(""):'<li class="mut">none</li>';
 }
 
+
+/* ---------- distributions ---------- */
+const DCH={},B=30;
+function quant(a,q){if(!a.length)return null;const i=(a.length-1)*q,lo=Math.floor(i),hi=Math.ceil(i);return a[lo]+(a[hi]-a[lo])*(i-lo)}
+function drawDist(id,title,sub,spec){
+  let o=DCH[id];
+  if(!o){
+    const card=document.createElement("section");card.className="card";
+    card.innerHTML=`<h2></h2><div class="small mut sub"></div><div class="legend">${spec.series.map(s=>`<span><span class="key k${s.n+1}"></span><span class="ln"></span></span>`).join("")}</div><div class="plot"></div><div class="wrap st"></div>`;
+    card.querySelectorAll(".legend .ln").forEach((e,i)=>{e.textContent=spec.series[i].name});
+    const plot=card.querySelector(".plot"),tip=document.createElement("div");tip.className="tip";plot.appendChild(tip);
+    $("dists").appendChild(card);
+    o=DCH[id]={card,plot,tip,st:card.querySelector(".st"),hx:null};
+    plot.addEventListener("pointermove",e=>{const b=plot.getBoundingClientRect();o.hx=(e.clientX-b.left)/b.width;distHover(o)});
+    plot.addEventListener("pointerleave",()=>{o.hx=null;distHover(o)});
+  }
+  o.card.querySelector("h2").textContent=title;o.card.querySelector(".sub").textContent=sub;o.spec=spec;
+  o.plot.querySelectorAll("svg,.empty,table").forEach(n=>n.remove());
+  const sers=spec.series.map(s=>({...s,sorted:s.vals.filter(Number.isFinite).filter(v=>!spec.log||v>0).sort((a,b)=>a-b)}));
+  const all=sers.flatMap(s=>s.sorted).sort((a,b)=>a-b);
+  const fm=spec.fmt||(v=>String(v));
+  o.st.innerHTML=`<table><thead><tr><th>Series</th><th>n</th><th>median</th><th>p95</th><th>p99</th><th>max</th></tr></thead><tbody>`+sers.map(s=>{
+    const q=x=>s.sorted.length?esc(fm(quant(s.sorted,x))):"–";
+    return `<tr><td><span class="key k${s.n+1}"></span>${esc(s.name)}</td><td class="num">${s.sorted.length}</td><td class="num"><b>${q(.5)}</b></td><td class="num">${q(.95)}</td><td class="num">${q(.99)}</td><td class="num">${s.sorted.length?esc(fm(s.sorted[s.sorted.length-1])):"–"}</td></tr>`}).join("")+"</tbody></table>";
+  if(all.length<2){const d=document.createElement("div");d.className="empty";d.textContent="collecting samples…";o.plot.insertBefore(d,o.tip);o.bins=null;return}
+  let lo=quant(all,.005),hi=quant(all,.995);
+  if(!(hi>lo)){if(spec.log){lo=all[0]*.9;hi=all[all.length-1]*1.1}else{const c=all[0],m=Math.max(1,Math.abs(c)*.05);lo=c-m;hi=c+m}}
+  const edges=[];for(let i=0;i<=B;i++)edges.push(spec.log?lo*Math.pow(hi/lo,i/B):lo+(hi-lo)*i/B);
+  const bin=v=>{const f=spec.log?Math.log(v/lo)/Math.log(hi/lo):(v-lo)/(hi-lo);return Math.min(B-1,Math.max(0,Math.floor(f*B)))};
+  const share=sers.map(s=>{const c=new Array(B).fill(0);for(const v of s.sorted)c[bin(v)]++;const n=s.sorted.length||1;
+    const raw=c.map(x=>x/n*100);return raw.map((x,i)=>.25*(raw[i-1]??x)+.5*x+.25*(raw[i+1]??x))});
+  o.bins={edges,share,sers};
+  const ymax=Math.max(1,...share.flat()),ticks=niceTicks(0,ymax),y1=ticks[ticks.length-1];
+  const pw=W-M.l-M.r,X=i=>M.l+(i+.5)/B*pw,Y=v=>M.t+(1-v/y1)*(H-M.t-M.b);
+  const xv=v=>M.l+Math.min(1,Math.max(0,(spec.log?Math.log(v/lo)/Math.log(hi/lo):(v-lo)/(hi-lo))))*pw;
+  o.X=X;
+  if(tableView){const t=document.createElement("table");
+    t.innerHTML=`<thead><tr><th>range</th>${sers.map(s=>`<th><span class="key k${s.n+1}"></span>${esc(s.name)} %</th>`).join("")}</tr></thead><tbody>`+
+      edges.slice(0,B).map((e,i)=>`<tr><td class="num">${esc(fm(e))} – ${esc(fm(edges[i+1]))}</td>${share.map(sh=>`<td class="num">${sh[i].toFixed(1)}</td>`).join("")}</tr>`).join("")+"</tbody>";
+    o.plot.insertBefore(t,o.tip);return}
+  let g="";
+  for(const tk of ticks)g+=`<line class="gl" x1="${M.l}" x2="${W-M.r}" y1="${Y(tk)}" y2="${Y(tk)}"/><text x="${M.l-6}" y="${Y(tk)+4}" text-anchor="end">${tk}%</text>`;
+  for(let i=0;i<=4;i++){const idx=Math.round(i*B/4),x=M.l+idx/B*pw;g+=`<text x="${x}" y="${H-6}" text-anchor="${i===0?"start":i===4?"end":"middle"}">${esc(fm(edges[idx]))}</text>`}
+  g+=`<line class="ax" x1="${M.l}" x2="${W-M.r}" y1="${H-M.b}" y2="${H-M.b}"/>`;
+  if(spec.zero&&lo<0&&hi>0)g+=`<line class="ax" x1="${xv(0)}" x2="${xv(0)}" y1="${M.t}" y2="${H-M.b}"/>`;
+  sers.forEach((s,k)=>{if(!s.sorted.length)return;const pts=share[k].map((v,i)=>[X(i),Y(v)]);
+    g+=`<path class="area a${s.n}" style="opacity:.12" d="M${pts[0][0]} ${H-M.b}${pts.map(p=>"L"+p[0].toFixed(1)+" "+p[1].toFixed(1)).join("")}L${pts[pts.length-1][0]} ${H-M.b}Z"/>`;
+    g+=`<path class="ln s${s.n}" d="${pts.map((p,i)=>(i?"L":"M")+p[0].toFixed(1)+" "+p[1].toFixed(1)).join("")}"/>`;
+    const mx=xv(quant(s.sorted,.5));g+=`<line class="ln s${s.n}" x1="${mx}" x2="${mx}" y1="${H-M.b}" y2="${H-M.b-10}"/><circle class="dot d${s.n}" cx="${mx}" cy="${H-M.b}" r="4"/>`});
+  g+=`<line class="xh" y1="${M.t}" y2="${H-M.b}" style="display:none"/>`;
+  const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");svg.setAttribute("viewBox",`0 0 ${W} ${H}`);svg.setAttribute("role","img");
+  svg.setAttribute("aria-label",`${title}. Dots on the axis mark each median. See the table below for exact values.`);svg.innerHTML=g;
+  o.plot.insertBefore(svg,o.tip);distHover(o);
+}
+function distHover(o){
+  const xh=o.plot.querySelector(".xh");if(!xh||!o.bins||o.hx==null){o.tip.style.display="none";if(xh)xh.style.display="none";return}
+  const ux=o.hx*W,pw=W-M.l-M.r;if(ux<M.l||ux>W-M.r){o.tip.style.display="none";xh.style.display="none";return}
+  const bi=Math.min(B-1,Math.floor((ux-M.l)/pw*B)),fm=o.spec.fmt||String,cx=o.X(bi);
+  xh.setAttribute("x1",cx);xh.setAttribute("x2",cx);xh.style.display="";
+  o.tip.textContent="";const h=document.createElement("div");h.className="t";h.textContent=fm(o.bins.edges[bi])+" – "+fm(o.bins.edges[bi+1]);o.tip.appendChild(h);
+  o.bins.sers.forEach((s,k)=>{const r=document.createElement("div"),key=document.createElement("span"),b=document.createElement("b"),n=document.createElement("span");
+    r.className="r";key.className="key k"+(s.n+1);b.textContent=o.bins.share[k][bi].toFixed(1)+"%";n.className="sec";n.textContent=s.name;r.append(key,b,n);o.tip.appendChild(r)});
+  o.tip.style.display="block";const pr=o.plot.getBoundingClientRect(),px=cx/W*pr.width;
+  o.tip.style.left=Math.min(Math.max(px+10,0),pr.width-o.tip.offsetWidth)+"px";o.tip.style.top="8px";
+}
+function dists(){
+  const t0=Date.now()-win,lat=c=>ST[c.id].lat.filter(p=>p.t>=t0);
+  const L=COLS.map(c=>({name:c.label,n:c.n,vals:lat(c).map(p=>p.ms)}));
+  const I=COLS.map(c=>{const a=lat(c),v=[];for(let i=1;i<a.length;i++)v.push(a[i].t-a[i-1].t);return {name:c.label,n:c.n,vals:v}});
+  const ref=lat(COLS[0]);
+  const K=[COLS[1],COLS[2]].map(c=>({name:c.label+" − OPC UA",n:c.n,vals:lat(c).map(p=>{const r=nearest(ref,p.t,ALIGN_MS);return r?p.t-r.t:null}).filter(v=>v!==null)}));
+  drawDist("d-lat","Latency distribution","Share of polls by round-trip time, log scale. Further left and narrower is better.",{series:L,log:true,fmt:v=>v.toFixed(v<10?2:1)+" ms"});
+  drawDist("d-int","Poll-interval jitter","Time between consecutive samples. One tight peak at the configured period means steady polling.",{series:I,fmt:v=>Math.round(v)+" ms"});
+  drawDist("d-skew","Sample-time skew vs OPC UA","Signed gap to the nearest OPC UA sample (≤1.5 s). Zero = sampled at the same instant.",{series:K,zero:true,fmt:v=>(v>0?"+":"")+Math.round(v)+" ms"});
+  const nt=tagList().filter(isNumTag);
+  if(nt.length){const sel=$("dtag"),cur=sel&&sel.value&&nt.includes(sel.value)?sel.value:nt[0];
+    const D=[COLS[1],COLS[2]].map(c=>({name:c.label+" − OPC UA",n:c.n,vals:devPts(c,cur).filter(p=>p.t>=t0).map(p=>p.v)}));
+    drawDist("d-val",`Value difference vs OPC UA · ${cur}`,"Signed difference to the nearest OPC UA sample. A peak at 0 means the protocols agree.",{series:D,zero:true,fmt:v=>(v>0?"+":"")+v.toFixed(3)})}
+}
+
 async function tick(){
   if(!dev)return;
   await pull();
   const any=SRC.py.up||SRC.go.up;$("main").classList.toggle("stale",!any);
-  colCards();valueTable();charts();agreement();errors();
+  colCards();valueTable();charts();dists();agreement();errors();
   $("upd").textContent=any?"updated "+new Date().toLocaleTimeString():"APIs unreachable";
 }
 async function init(){
   let ds=[];try{ds=await j("py","devices")}catch(e){try{ds=await j("go","devices")}catch(_){}}
   $("dev").innerHTML=ds.map(d=>`<option value="${esc(d.id)}">${esc(d.id)}${d.mock?" (mock)":""}</option>`).join("");
   dev=ds[0]&&ds[0].id;
-  $("dev").onchange=async e=>{dev=e.target.value;$("charts").innerHTML="";for(const k in CH)delete CH[k];await loadHistory();tick()};
-  $("win").onchange=e=>{win=+e.target.value;charts();agreement()};
-  $("tbl").onchange=e=>{tableView=e.target.checked;charts()};
+  $("dev").onchange=async e=>{dev=e.target.value;$("charts").innerHTML="";$("dists").innerHTML="";for(const k in CH)delete CH[k];for(const k in DCH)delete DCH[k];await loadHistory();tick()};
+  $("win").onchange=e=>{win=+e.target.value;charts();dists();agreement()};
+  $("tbl").onchange=e=>{tableView=e.target.checked;charts();dists()};
   await loadHistory();tick();setInterval(tick,1000);
 }
 init();
