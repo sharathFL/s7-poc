@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -26,6 +27,9 @@ def create_app(acq: Acquisition | None = None) -> FastAPI:
         await app.state.acq.stop()
 
     app = FastAPI(title="S7 PoC (Python)", version="1.0", lifespan=lifespan)
+    # The dashboard (served from either :8001 or :8002) reads both APIs: allow GET from localhost origins only.
+    app.add_middleware(CORSMiddleware, allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
+                       allow_methods=["GET"], allow_headers=[])
     app.include_router(router)
     dash = Path(os.environ.get("DASHBOARD_DIR", "/dashboard"))
     if dash.is_dir():

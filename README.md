@@ -15,6 +15,15 @@ Subscriptions are implemented in Python only; Go polls.
 
 Both images are `linux/amd64`, run on Docker Desktop (Windows, Linux containers/WSL2) and need no GPU.
 
+## Three-way dashboard
+
+`http://localhost:8001` (or `:8002`) shows three columns side by side: **OPC UA** (Python/asyncua),
+**Snap7 S7comm** (Python/python-snap7) and **PLC4X S7comm** (Go/plc4go), plus streaming values, latency,
+per-tag value overlays, difference-from-OPC-UA and pairwise agreement graphs (with a table view).
+It reads both APIs from the browser, so run both apps (`run-windows.ps1` and `run-windows-go.ps1`);
+a column shows "App not reachable" if its app is down. Override URLs with `?py=http://host:8001&go=http://host:8002`.
+Both APIs allow GET from localhost origins (CORS).
+
 ## Quick start (Windows PowerShell, same on Linux)
 
 ```powershell

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -205,7 +206,26 @@ func (s *Server) Handler() http.Handler {
 			http.ServeFile(w, r, filepath.Join(s.Dash, "index.html"))
 		})
 	}
-	return m
+	return cors(m)
+}
+
+// cors lets the dashboard (served from the Python app on :8001 or from here) read this API.
+// Read-only API, so only GET from localhost origins is allowed.
+func cors(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if o := r.Header.Get("Origin"); o != "" {
+			if u, err := url.Parse(o); err == nil && (u.Hostname() == "localhost" || u.Hostname() == "127.0.0.1") {
+				w.Header().Set("Access-Control-Allow-Origin", o)
+				w.Header().Set("Access-Control-Allow-Methods", "GET")
+				w.Header().Add("Vary", "Origin")
+			}
+		}
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func nilIfEmpty(s string) any {

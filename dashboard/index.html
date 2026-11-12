@@ -2,75 +2,269 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>S7 PoC Dashboard</title>
 <style>
-:root{--bg:#f6f7f9;--card:#fff;--fg:#1c2330;--mut:#6b7686;--bd:#dfe3ea;--ok:#1a7f4b;--warn:#b7791f;--bad:#c0392b;--acc:#2456c9}
-@media (prefers-color-scheme:dark){:root{--bg:#10141b;--card:#181e28;--fg:#e6eaf0;--mut:#8b96a8;--bd:#2a3342;--ok:#4cc38a;--warn:#e0b04a;--bad:#ef6f61;--acc:#6b95ff}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 system-ui,sans-serif}
-header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--bd);background:var(--card)}
-h1{font-size:16px;margin:0}main{padding:16px;max-width:1200px;margin:auto;display:grid;gap:16px}
-.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
-.card{background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:12px 14px}
-.card h2{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--mut);margin:0 0 8px}
-.big{font-size:20px;font-weight:600}.mut{color:var(--mut)}.small{font-size:12px}
-.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:var(--mut)}
-.ok{color:var(--ok)}.warn{color:var(--warn)}.bad{color:var(--bad)}
-.dot.ok{background:var(--ok)}.dot.warn{background:var(--warn)}.dot.bad{background:var(--bad)}
-table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--bd);white-space:nowrap}
-th{font-size:12px;color:var(--mut);font-weight:600}.wrap{overflow-x:auto}td.num{font-variant-numeric:tabular-nums}
+:root{color-scheme:light;--bg:#f9f9f7;--card:#fcfcfb;--fg:#0b0b0b;--fg2:#52514e;--mut:#898781;--grid:#e1e0d9;--axis:#c3c2b7;--bd:rgba(11,11,11,.10);
+ --c1:#2a78d6;--c2:#eb6834;--c3:#1baf7a;--good:#006300;--warn:#8a5a00;--bad:#d03b3b;--hover:rgba(11,11,11,.05)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--bg:#0d0d0d;--card:#1a1a19;--fg:#f0efec;--fg2:#c3c2b7;--grid:#2c2c2a;--axis:#383835;--bd:rgba(255,255,255,.10);
+ --c1:#3987e5;--c2:#d95926;--c3:#199e70;--good:#0ca30c;--warn:#fab219;--bad:#ec835a;--hover:rgba(255,255,255,.06)}}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#0d0d0d;--card:#1a1a19;--fg:#f0efec;--fg2:#c3c2b7;--grid:#2c2c2a;--axis:#383835;--bd:rgba(255,255,255,.10);
+ --c1:#3987e5;--c2:#d95926;--c3:#199e70;--good:#0ca30c;--warn:#fab219;--bad:#ec835a;--hover:rgba(255,255,255,.06)}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+header{padding:12px 16px;border-bottom:1px solid var(--bd);background:var(--card)}
+h1{font-size:16px;margin:0}main{padding:16px;max-width:1280px;margin:auto;display:grid;gap:16px;transition:opacity .2s}main.stale{opacity:.6}
+.filters{display:flex;flex-wrap:wrap;gap:16px;align-items:center;margin-top:8px}
+label.f{font-size:12px;color:var(--fg2)}select,button{background:var(--card);color:var(--fg);border:1px solid var(--bd);border-radius:6px;padding:4px 8px;font:inherit}
+button{cursor:pointer}button:hover{background:var(--hover)}
+.grid3{display:grid;gap:12px;grid-template-columns:repeat(3,minmax(0,1fr))}
+.grid2{display:grid;gap:12px;grid-template-columns:repeat(2,minmax(0,1fr))}
+@media (max-width:860px){.grid3,.grid2{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:12px 14px;min-width:0}
+.card h2{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--fg2);margin:0 0 6px}
+.mut{color:var(--mut)}.small{font-size:12px}.sec{color:var(--fg2)}
+.key{display:inline-block;width:12px;height:3px;border-radius:2px;vertical-align:middle;margin-right:6px}
+.k1{background:var(--c1)}.k2{background:var(--c2)}.k3{background:var(--c3)}
+.big{font-size:18px;font-weight:600}.good{color:var(--good)}.warn{color:var(--warn)}.bad{color:var(--bad)}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}.stats b{display:block;font-size:16px;font-weight:600}
+table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--grid);white-space:nowrap}
+th{font-size:12px;color:var(--fg2);font-weight:600}td.num{font-variant-numeric:tabular-nums}.wrap{overflow-x:auto}
 .pill{padding:1px 7px;border-radius:10px;font-size:11px;border:1px solid currentColor}
-select{background:var(--card);color:var(--fg);border:1px solid var(--bd);border-radius:6px;padding:4px 8px}
+.legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--fg2);margin:0 0 6px}
+.plot{position:relative}svg{display:block;width:100%;height:auto;touch-action:none}
+svg text{fill:var(--mut);font-size:11px;font-variant-numeric:tabular-nums}
+.gl{stroke:var(--grid);stroke-width:1}.ax{stroke:var(--axis);stroke-width:1}
+.ln{fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.s0{stroke:var(--c1)}.s1{stroke:var(--c2)}.s2{stroke:var(--c3)}
+.d0{fill:var(--c1)}.d1{fill:var(--c2)}.d2{fill:var(--c3)}.dot{stroke:var(--card);stroke-width:2}
+.xh{stroke:var(--mut);stroke-width:1}
+.tip{position:absolute;pointer-events:none;background:var(--card);border:1px solid var(--bd);border-radius:6px;padding:6px 8px;font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,.15);display:none;z-index:2;white-space:nowrap}
+.tip .t{color:var(--mut);margin-bottom:2px}.tip .r{display:flex;gap:6px;align-items:center}.tip b{font-size:13px;color:var(--fg)}
+.empty{height:120px;display:flex;align-items:center;justify-content:center;color:var(--mut)}
 ul{margin:0;padding-left:18px}li{margin:2px 0}
 </style></head><body>
-<header><h1>S7 PoC &middot; S7comm vs OPC UA <span id="impl" class="mut small"></span></h1>
-<div><label class="small mut">Device <select id="dev"></select></label> <span id="upd" class="small mut"></span></div></header>
-<main>
- <div class="grid" id="status"></div>
- <section class="card"><h2>Tags &mdash; side-by-side</h2><div class="wrap"><table>
-  <thead><tr><th>Tag</th><th>Type</th><th>S7comm</th><th>Q</th><th>OPC UA</th><th>Q</th><th>&Delta;</th><th>Skew</th><th>Result</th><th>S7 sampled</th><th>OPC UA sampled</th></tr></thead>
-  <tbody id="tags"></tbody></table></div>
-  <p class="small mut" id="note"></p></section>
- <div class="grid">
-  <section class="card"><h2>Protocol performance</h2><div class="wrap"><table id="perf"></table></div></section>
-  <section class="card"><h2>Communication errors</h2><ul id="errs" class="small"></ul></section>
- </div>
+<header><h1>S7 PoC &middot; OPC UA vs Snap7 S7comm vs PLC4X S7comm <span id="upd" class="small mut"></span></h1>
+ <div class="filters">
+  <label class="f">Device <select id="dev"></select></label>
+  <label class="f">Window <select id="win"><option value="60000">last 1 min</option><option value="300000" selected>last 5 min</option><option value="900000">last 15 min</option></select></label>
+  <label class="f"><input type="checkbox" id="tbl"> Table view of charts</label>
+ </div></header>
+<main id="main">
+ <div class="grid3" id="cols"></div>
+ <section class="card"><h2>Streaming values &mdash; side by side</h2><div class="wrap"><table>
+  <thead><tr><th>Tag</th><th><span class="key k1"></span>OPC UA</th><th><span class="key k2"></span>Snap7</th><th><span class="key k3"></span>PLC4X</th><th>Spread</th><th>Skew</th><th>Result</th></tr></thead>
+  <tbody id="tags"></tbody></table></div><p class="small mut" id="note"></p></section>
+ <div class="grid2" id="charts"></div>
+ <section class="card"><h2>Agreement over the window (sample-aligned pairs)</h2><div class="wrap"><table id="agree"></table></div>
+  <p class="small mut">Each sample is compared with the nearest sample of the other protocol within 1.5 s. Match = within tolerance. &Delta; = mean absolute difference. Counters and ramps move between samples, so small non-zero &Delta; is expected.</p></section>
+ <section class="card"><h2>Communication errors</h2><ul id="errs" class="small"></ul></section>
 </main>
 <script>
-const $=s=>document.getElementById(s);const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const qc=q=>q==="GOOD"?"ok":q==="STALE"?"warn":"bad";
-const fmt=v=>v===null||v===undefined?"&ndash;":typeof v==="number"?(Number.isInteger(v)?v:v.toFixed(3)):esc(v);
-const t=ts=>ts?ts.slice(11,23):"";
-let dev=null;
-async function j(u){const r=await fetch(u);if(!r.ok)throw new Error(u+" "+r.status);return r.json()}
-async function init(){
-  const h=await j("health");$("impl").textContent="("+h.implementation+")";
-  const ds=await j("devices");$("dev").innerHTML=ds.map(d=>`<option value="${esc(d.id)}">${esc(d.id)}${d.mock?" (mock)":""}</option>`).join("");
-  dev=ds[0]?.id;$("dev").onchange=e=>{dev=e.target.value;tick()};tick();setInterval(tick,1000)}
-function chanCard(name,c){
-  if(!c)return `<div class="card"><h2>${name}</h2><span class="mut">disabled</span></div>`;
-  const cls=c.connected?"ok":"bad";
-  return `<div class="card"><h2>${name}${c.mock?" (simulated)":""}</h2><div class="big"><span class="dot ${cls}"></span>${c.connected?"Connected":"Disconnected"}</div>
-  <div class="small mut">last ok: ${t(c.last_success)||"never"} &middot; reconnects: ${c.reconnects}</div>
-  ${c.last_error?`<div class="small bad">${esc(c.last_error)}</div>`:""}</div>`}
+const $=s=>document.getElementById(s);
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const qs=new URLSearchParams(location.search), host=location.hostname||"localhost";
+const BASE={py:qs.get("py")||`http://${host}:8001`, go:qs.get("go")||`http://${host}:8002`};
+const COLS=[
+ {id:"opcua",label:"OPC UA",sub:"Python · asyncua",src:"py",kind:"opcua",n:0},
+ {id:"snap7",label:"Snap7 S7comm",sub:"Python · python-snap7",src:"py",kind:"s7comm",n:1},
+ {id:"plc4x",label:"PLC4X S7comm",sub:"Go · plc4go",src:"go",kind:"s7comm",n:2}];
+const REL=0.02, ABS=0.05, ALIGN_MS=1500, KEEP_MS=15*60000;
+let dev=null, win=300000, tableView=false;
+const ST={};      // col id -> {tags:{tag:[{t,v,q}]}, lat:[{t,ms}], latest:{tag:reading}, status, up, hist}
+const SRC={py:{up:false,err:""},go:{up:false,err:""}};
+const resetState=()=>{for(const c of COLS)ST[c.id]={tags:{},lat:[],latest:{},status:null}};resetState();
+
+async function j(src,path){const ac=new AbortController(),to=setTimeout(()=>ac.abort(),2500);
+  try{const r=await fetch(BASE[src]+"/"+path,{signal:ac.signal});if(!r.ok)throw new Error(r.status);return await r.json()}finally{clearTimeout(to)}}
+
+function ingest(c,rs){const s=ST[c.id];
+  for(const r of rs){ if(!String(r.protocol).endsWith(c.kind))continue;
+    const t=Date.parse(r.timestamp); if(!(t>0))continue;
+    const a=s.tags[r.tag]||(s.tags[r.tag]=[]);
+    if(!a.length||t>a[a.length-1].t) a.push({t,v:r.value,q:r.quality});
+    if(r.quality==="GOOD"&&r.latency_ms!=null&&(!s.lat.length||t>s.lat[s.lat.length-1].t)) s.lat.push({t,ms:r.latency_ms});
+  }
+  const cut=Date.now()-KEEP_MS;
+  for(const a of Object.values(s.tags)) while(a.length&&a[0].t<cut)a.shift();
+  while(s.lat.length&&s.lat[0].t<cut)s.lat.shift();
+}
+async function loadHistory(){
+  resetState();
+  for(const src of ["py","go"]){
+    try{const h=await j(src,`devices/${dev}/readings?history=true&limit=5000`);
+      for(const c of COLS) if(c.src===src) ingest(c,h);}catch(e){}
+  }
+}
+async function pull(){
+  for(const src of ["py","go"]){
+    try{
+      const [st,rs]=await Promise.all([j(src,`devices/${dev}/status`),j(src,`devices/${dev}/readings`)]);
+      SRC[src]={up:true,err:""};
+      for(const c of COLS){ if(c.src!==src)continue;
+        const s=ST[c.id]; s.status=st.channels?st.channels[c.kind]:null; s.latest={};
+        for(const r of rs) if(String(r.protocol).endsWith(c.kind)) s.latest[r.tag]=r;
+        ingest(c,rs);}
+    }catch(e){SRC[src]={up:false,err:String(e.message||e)};for(const c of COLS) if(c.src===src){ST[c.id].status=null;ST[c.id].latest={}}}
+  }
+}
+const fmt=v=>v===null||v===undefined?"–":typeof v==="number"?(Number.isInteger(v)?String(v):v.toFixed(3)):String(v);
+const hms=t=>new Date(t).toLocaleTimeString([], {hour12:false})+"."+String(t%1000).padStart(3,"0");
+const num=v=>typeof v==="number";
+const isNumTag=tag=>COLS.some(c=>{const a=ST[c.id].tags[tag];return a&&a.length&&num(a[a.length-1].v)});
+function match(a,b){if(typeof a==="boolean"||typeof b==="boolean")return a===b;
+  if(num(a)&&num(b))return Math.abs(a-b)<=Math.max(REL*Math.max(Math.abs(a),Math.abs(b)),ABS);return a===b}
+function nearest(arr,t,max){let best=null,bd=max+1;for(let i=arr.length-1;i>=0;i--){const d=Math.abs(arr[i].t-t);if(d<bd){bd=d;best=arr[i]}else if(arr[i].t<t-max)break}return best}
+
+/* ---------- columns ---------- */
+function colCards(){
+  $("cols").innerHTML=COLS.map(c=>{const s=ST[c.id],st=s.status,sr=SRC[c.src];
+    const head=`<h2><span class="key k${c.n+1}"></span>${esc(c.label)}</h2><div class="small mut">${esc(c.sub)}</div>`;
+    if(!sr.up) return `<div class="card">${head}<div class="big bad">✕ App not reachable</div><div class="small mut">${esc(BASE[c.src])} ${c.src==="go"?"— start it with .\\run-windows-go.ps1":""}</div></div>`;
+    if(!st) return `<div class="card">${head}<div class="big mut">disabled</div></div>`;
+    const ok=st.connected, lat=st.latency_ms||{}, sr_=st.success_rate;
+    return `<div class="card">${head}<div class="big ${ok?"good":"bad"}">${ok?"✓ Connected":"✕ Disconnected"}</div>
+     <div class="small mut">last ok ${st.last_success?esc(hms(Date.parse(st.last_success))):"never"} · reconnects ${st.reconnects}</div>
+     ${st.last_error?`<div class="small bad">${esc(st.last_error)}</div>`:""}
+     <div class="stats small sec"><div><b>${sr_==null?"–":(sr_*100).toFixed(1)+"%"}</b>success</div><div><b>${fmt(lat.avg)}</b>avg ms</div><div><b>${fmt(lat.p95)}</b>p95 ms</div><div><b>${fmt(lat.max)}</b>max ms</div></div>
+     <div class="small mut" style="margin-top:6px">${st.reads_ok} ok / ${st.reads_fail} failed reads</div></div>`}).join("");
+}
+
+/* ---------- value table ---------- */
+function tagList(){const s=new Set();for(const c of COLS){for(const t of Object.keys(ST[c.id].latest))s.add(t);for(const t of Object.keys(ST[c.id].tags))s.add(t)}return [...s]}
+function valueTable(){
+  const rows=tagList().map(tag=>{
+    const rs=COLS.map(c=>ST[c.id].latest[tag]);
+    const cell=r=>!r?`<td class="mut">–</td>`:`<td class="num"><b>${esc(fmt(r.value))}</b> <span class="small mut">${esc(r.datatype||"")}</span>${r.quality==="GOOD"?"":` <span class="pill ${r.quality==="STALE"?"warn":"bad"}">${r.quality==="STALE"?"▲":"✕"} ${esc(r.quality)}</span>`}</td>`;
+    const have=rs.filter(Boolean), good=have.filter(r=>r.quality==="GOOD");
+    let res,cls;
+    if(have.length<COLS.length){res="– INCOMPLETE";cls="mut"}
+    else if(good.length<COLS.length){res="✕ UNUSABLE";cls="bad"}
+    else{const ref=rs[0].value;const all=rs.every(r=>match(ref,r.value));res=all?"✓ MATCH":"▲ DIFFERENT";cls=all?"good":"warn"}
+    const nums=good.map(r=>r.value).filter(num);
+    const spread=nums.length===good.length&&nums.length>1?(Math.max(...nums)-Math.min(...nums)).toFixed(3):"–";
+    const ts=have.map(r=>Date.parse(r.timestamp));const skew=ts.length>1?Math.round(Math.max(...ts)-Math.min(...ts))+" ms":"–";
+    return `<tr><td><b>${esc(tag)}</b></td>${rs.map(cell).join("")}<td class="num">${spread}</td><td class="num">${skew}</td><td><span class="pill ${cls}">${res}</span></td></tr>`});
+  $("tags").innerHTML=rows.join("")||`<tr><td colspan="7" class="mut">waiting for data…</td></tr>`;
+  $("note").textContent=`Reads are independent samples, so values can differ by process change between reads (see Skew). Tolerance: relative ${REL}, absolute ${ABS}.`;
+}
+
+/* ---------- charts ---------- */
+const CH={};   // id -> {card, plot, tip, spec, hx}
+function niceTicks(lo,hi,n=4){if(lo===hi){lo-=1;hi+=1}const raw=(hi-lo)/n,mag=10**Math.floor(Math.log10(raw)),f=raw/mag,step=(f<=1?1:f<=2?2:f<=5?5:10)*mag;
+  const a=Math.floor(lo/step)*step,b=Math.ceil(hi/step)*step,t=[];for(let v=a;v<=b+step/2;v+=step)t.push(+v.toFixed(10));return t}
+function ensureChart(id,title,sub){
+  if(CH[id])return CH[id];
+  const card=document.createElement("section");card.className="card";
+  card.innerHTML=`<h2></h2><div class="small mut sub"></div><div class="legend">${COLS.map(c=>`<span><span class="key k${c.n+1}"></span>${esc(c.label)}</span>`).join("")}</div><div class="plot"></div>`;
+  card.querySelector("h2").textContent=title;card.querySelector(".sub").textContent=sub;
+  const plot=card.querySelector(".plot"),tip=document.createElement("div");tip.className="tip";plot.appendChild(tip);
+  $("charts").appendChild(card);
+  const o={card,plot,tip,spec:null,hx:null};CH[id]=o;
+  plot.addEventListener("pointermove",e=>{const b=plot.getBoundingClientRect();o.hx=(e.clientX-b.left)/b.width;hover(o)});
+  plot.addEventListener("pointerleave",()=>{o.hx=null;hover(o)});
+  return o;
+}
+const W=640,H=230,M={l:48,r:12,t:10,b:24};
+function draw(id,title,sub,spec){
+  const o=ensureChart(id,title,sub);o.spec=spec;
+  const now=Date.now(),t0=now-win,vis=spec.series.map(s=>({...s,pts:s.pts.filter(p=>p.t>=t0&&num(p.v))}));
+  const all=vis.flatMap(s=>s.pts.map(p=>p.v));
+  o.vis=vis;o.t0=t0;o.now=now;
+  if(tableView){o.plot.querySelectorAll("svg,.empty,table").forEach(n=>n.remove());o.plot.insertBefore(tableEl(vis,spec),o.tip);return}
+  o.plot.querySelectorAll("svg,.empty,table").forEach(n=>n.remove());
+  if(!all.length){const d=document.createElement("div");d.className="empty";d.textContent="waiting for data…";o.plot.insertBefore(d,o.tip);return}
+  let lo=Math.min(...all),hi=Math.max(...all);if(spec.zero)lo=Math.min(0,lo);
+  if(lo===hi){lo-=1;hi+=1}else{const p=(hi-lo)*.08;hi+=p;if(!spec.zero||lo<0)lo-=p}
+  const ticks=niceTicks(lo,hi),y0=ticks[0],y1=ticks[ticks.length-1];o.y0=y0;o.y1=y1;
+  const X=t=>M.l+(t-t0)/win*(W-M.l-M.r),Y=v=>M.t+(1-(v-y0)/(y1-y0))*(H-M.t-M.b);o.X=X;o.Y=Y;
+  let g="";
+  for(const tk of ticks)g+=`<line class="gl" x1="${M.l}" x2="${W-M.r}" y1="${Y(tk)}" y2="${Y(tk)}"/><text x="${M.l-6}" y="${Y(tk)+4}" text-anchor="end">${esc(spec.tick?spec.tick(tk):tk)}</text>`;
+  if(spec.zeroLine&&y0<0&&y1>0)g+=`<line class="ax" x1="${M.l}" x2="${W-M.r}" y1="${Y(0)}" y2="${Y(0)}"/>`;
+  for(let i=0;i<=3;i++){const t=t0+win*i/3;g+=`<text x="${X(t)}" y="${H-6}" text-anchor="${i===0?"start":i===3?"end":"middle"}">${new Date(t).toLocaleTimeString([], {hour12:false})}</text>`}
+  g+=`<line class="ax" x1="${M.l}" x2="${W-M.r}" y1="${H-M.b}" y2="${H-M.b}"/>`;
+  for(const s of vis){if(!s.pts.length)continue;
+    g+=`<path class="ln s${s.n}" d="${s.pts.map((p,i)=>(i?"L":"M")+X(p.t).toFixed(1)+" "+Y(p.v).toFixed(1)).join("")}"/>`;
+    const e=s.pts[s.pts.length-1];g+=`<circle class="dot d${s.n}" cx="${X(e.t)}" cy="${Y(e.v)}" r="4"/>`}
+  g+=`<line class="xh" id="xh-${id}" y1="${M.t}" y2="${H-M.b}" style="display:none"/>`;
+  const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");svg.setAttribute("viewBox",`0 0 ${W} ${H}`);svg.setAttribute("role","img");
+  svg.setAttribute("aria-label",`${title}. ${spec.unit||""} Use the table view for exact values.`);svg.innerHTML=g;
+  o.plot.insertBefore(svg,o.tip);hover(o);
+}
+function hover(o){
+  const xh=o.plot.querySelector(".xh");if(!xh||o.hx==null||!o.X){o.tip.style.display="none";if(xh)xh.style.display="none";return}
+  const ux=o.hx*W,t=o.t0+(ux-M.l)/(W-M.l-M.r)*win;
+  if(ux<M.l||ux>W-M.r){o.tip.style.display="none";xh.style.display="none";return}
+  let snapT=null,bd=1e18;for(const s of o.vis)for(const p of s.pts){const d=Math.abs(p.t-t);if(d<bd){bd=d;snapT=p.t}}
+  if(snapT==null)return;
+  xh.setAttribute("x1",o.X(snapT));xh.setAttribute("x2",o.X(snapT));xh.style.display="";
+  o.tip.textContent="";const h=document.createElement("div");h.className="t";h.textContent=hms(snapT);o.tip.appendChild(h);
+  for(const s of o.vis){const p=nearest(s.pts,snapT,ALIGN_MS);const r=document.createElement("div");r.className="r";
+    const k=document.createElement("span");k.className="key k"+(s.n+1);const b=document.createElement("b");b.textContent=p?(o.spec.fmt?o.spec.fmt(p.v):fmt(p.v)):"–";
+    const n=document.createElement("span");n.className="sec";n.textContent=s.name;r.append(k,b,n);o.tip.appendChild(r)}
+  o.tip.style.display="block";const pr=o.plot.getBoundingClientRect(),px=o.X(snapT)/W*pr.width;
+  o.tip.style.left=Math.min(Math.max(px+10,0),pr.width-o.tip.offsetWidth)+"px";o.tip.style.top="8px";
+}
+function tableEl(vis,spec){
+  const t=document.createElement("table"),n=8;
+  t.innerHTML=`<thead><tr><th>#</th>${vis.map(s=>`<th><span class="key k${s.n+1}"></span>${esc(s.name)}</th>`).join("")}</tr></thead>`;
+  const b=document.createElement("tbody");
+  for(let i=0;i<n;i++){const tr=document.createElement("tr");let any=false;
+    tr.innerHTML=`<td class="mut">−${i}</td>`+vis.map(s=>{const p=s.pts[s.pts.length-1-i];if(p)any=true;return `<td class="num">${p?esc(hms(p.t))+" · <b>"+esc(spec.fmt?spec.fmt(p.v):fmt(p.v))+"</b>":"–"}</td>`}).join("");
+    if(any)b.appendChild(tr)}
+  t.appendChild(b);return t;
+}
+function charts(){
+  const L=COLS.map(c=>({name:c.label,n:c.n,pts:ST[c.id].lat.map(p=>({t:p.t,v:p.ms}))}));
+  draw("lat","Read latency","Round-trip time of each poll cycle (ms). Lower is better.",{series:L,zero:true,unit:"Milliseconds.",fmt:v=>v.toFixed(2)+" ms"});
+  const nt=tagList().filter(isNumTag);
+  for(const tag of nt){
+    const S=COLS.map(c=>({name:c.label,n:c.n,pts:(ST[c.id].tags[tag]||[]).filter(p=>p.q==="GOOD").map(p=>({t:p.t,v:p.v}))}));
+    draw("val-"+tag,`Value: ${tag}`,"Same tag read three ways. Overlapping lines = agreement.",{series:S,unit:"Tag value."});
+  }
+  if(nt.length){
+    const sel=$("dtag");let cur=sel&&sel.value&&nt.includes(sel.value)?sel.value:nt[0];
+    const ref=ST.opcua.tags[cur]||[];
+    const dv=c=>({name:c.label+" − OPC UA",n:c.n,pts:(ST[c.id].tags[cur]||[]).filter(p=>p.q==="GOOD"&&num(p.v)).map(p=>{const r=nearest(ref.filter(x=>x.q==="GOOD"),p.t,ALIGN_MS);return r&&num(r.v)?{t:p.t,v:p.v-r.v}:null}).filter(Boolean)});
+    draw("dev","Difference from OPC UA",`Snap7 and PLC4X minus the nearest OPC UA sample (≤1.5 s), tag: ${cur}.`,{series:[dv(COLS[1]),dv(COLS[2])],zeroLine:true,unit:"Difference.",fmt:v=>v.toFixed(3)});
+    const o=CH.dev,s=o.card.querySelector(".sub");
+    if(!$("dtag")){const x=document.createElement("select");x.id="dtag";x.style.marginLeft="8px";s.after(x);x.onchange=()=>charts()}
+    const x=$("dtag");if(x.dataset.k!==nt.join("|")){x.innerHTML=nt.map(t=>`<option>${esc(t)}</option>`).join("");x.dataset.k=nt.join("|")}
+    x.value=cur;
+  }
+}
+
+/* ---------- agreement ---------- */
+function agreement(){
+  const pairs=[[0,1],[0,2],[1,2]];
+  let h=`<tr><th>Tag</th>${pairs.map(([a,b])=>`<th>${esc(COLS[a].label)} ↔ ${esc(COLS[b].label)}</th>`).join("")}</tr>`;
+  const t0=Date.now()-win;
+  for(const tag of tagList()){
+    h+=`<tr><td><b>${esc(tag)}</b></td>`+pairs.map(([a,b])=>{
+      const A=(ST[COLS[a].id].tags[tag]||[]).filter(p=>p.t>=t0&&p.q==="GOOD"),B=(ST[COLS[b].id].tags[tag]||[]).filter(p=>p.q==="GOOD");
+      let n=0,m=0,sum=0,numeric=true;
+      for(const p of A){const q=nearest(B,p.t,ALIGN_MS);if(!q)continue;n++;if(match(p.v,q.v))m++;if(num(p.v)&&num(q.v))sum+=Math.abs(p.v-q.v);else numeric=false}
+      if(!n)return `<td class="mut">–</td>`;
+      const pct=m/n*100;return `<td class="num"><span class="${pct>=99?"good":pct>=90?"warn":"bad"}">${pct>=99?"✓":pct>=90?"▲":"✕"} ${pct.toFixed(1)}%</span> <span class="small mut">(${n})${numeric?` · Δ ${(sum/n).toFixed(3)}`:""}</span></td>`}).join("")+"</tr>";
+  }
+  $("agree").innerHTML=h;
+}
+function errors(){
+  const e=COLS.flatMap(c=>((ST[c.id].status&&ST[c.id].status.recent_errors)||[]).map(x=>({...x,col:c.label}))).sort((a,b)=>b.time.localeCompare(a.time)).slice(0,10);
+  $("errs").innerHTML=e.length?e.map(x=>`<li><span class="mut">${esc(hms(Date.parse(x.time)))}</span> <b>${esc(x.col)}</b> ${esc(x.message)}</li>`).join(""):'<li class="mut">none</li>';
+}
+
 async function tick(){
   if(!dev)return;
-  try{
-    const [st,cmp]=await Promise.all([j(`devices/${dev}/status`),j(`comparison?device_id=${dev}`)]);
-    const cls={ONLINE:"ok",DEGRADED:"warn",OFFLINE:"bad"}[st.state];
-    $("status").innerHTML=`<div class="card"><h2>PLC ${esc(st.ip)}</h2><div class="big ${cls}"><span class="dot ${cls}"></span>${st.state}</div><div class="small mut">${cmp.summary.matching}/${cmp.summary.compared} tags match across protocols</div></div>`+
-      chanCard("S7comm",st.channels.s7comm)+chanCard("OPC UA",st.channels.opcua);
-    $("tags").innerHTML=cmp.tags.map(r=>{const a=r.s7comm,b=r.opcua;
-      const cell=(x)=>x?`<td class="num">${fmt(x.value)}</td><td class="${qc(x.quality)}">${x.quality}</td>`:`<td>&ndash;</td><td>&ndash;</td>`;
-      const rc={MATCH:"ok",DIFFERENT:"warn",UNUSABLE:"bad",INCOMPLETE:"mut"}[r.status];
-      return `<tr><td><b>${esc(r.tag)}</b></td><td class="mut">${esc(a?.datatype||"")} / ${esc(b?.datatype||"")}${r.type_match===false?' <span class="warn">?</span>':""}</td>${cell(a)}${cell(b)}
-      <td class="num">${r.value_diff==null?"&ndash;":r.value_diff.toFixed(3)}</td><td class="num">${r.skew_ms==null?"&ndash;":r.skew_ms+" ms"}</td>
-      <td><span class="pill ${rc}">${r.status}</span></td><td class="mut">${t(a?.timestamp)}</td><td class="mut">${t(b?.timestamp)}</td></tr>`}).join("");
-    $("note").textContent=cmp.note+` Tolerance: rel ${cmp.tolerance.relative}, abs ${cmp.tolerance.absolute}.`;
-    const ps=cmp.protocol_stats;
-    $("perf").innerHTML="<tr><th>Protocol</th><th>Success</th><th>Avg ms</th><th>P95 ms</th><th>Max ms</th><th>OK/Fail</th></tr>"+
-      Object.entries(ps).map(([k,v])=>`<tr><td>${k}</td><td>${v.success_rate==null?"&ndash;":(v.success_rate*100).toFixed(1)+"%"}</td><td class="num">${fmt(v.latency_ms.avg)}</td><td class="num">${fmt(v.latency_ms.p95)}</td><td class="num">${fmt(v.latency_ms.max)}</td><td>${v.reads_ok}/${v.reads_fail}</td></tr>`).join("");
-    const errs=Object.values(st.channels).flatMap(c=>c.recent_errors).sort((a,b)=>b.time.localeCompare(a.time)).slice(0,10);
-    $("errs").innerHTML=errs.length?errs.map(e=>`<li><span class="mut">${t(e.time)}</span> <b>${esc(e.protocol)}</b> ${esc(e.message)}</li>`).join(""):'<li class="mut">none</li>';
-    $("upd").textContent="updated "+new Date().toLocaleTimeString();
-  }catch(e){$("upd").innerHTML=`<span class="bad">API unreachable: ${esc(e.message)}</span>`}
+  await pull();
+  const any=SRC.py.up||SRC.go.up;$("main").classList.toggle("stale",!any);
+  colCards();valueTable();charts();agreement();errors();
+  $("upd").textContent=any?"updated "+new Date().toLocaleTimeString():"APIs unreachable";
+}
+async function init(){
+  let ds=[];try{ds=await j("py","devices")}catch(e){try{ds=await j("go","devices")}catch(_){}}
+  $("dev").innerHTML=ds.map(d=>`<option value="${esc(d.id)}">${esc(d.id)}${d.mock?" (mock)":""}</option>`).join("");
+  dev=ds[0]&&ds[0].id;
+  $("dev").onchange=async e=>{dev=e.target.value;$("charts").innerHTML="";for(const k in CH)delete CH[k];await loadHistory();tick()};
+  $("win").onchange=e=>{win=+e.target.value;charts();agreement()};
+  $("tbl").onchange=e=>{tableView=e.target.checked;charts()};
+  await loadHistory();tick();setInterval(tick,1000);
 }
 init();
 </script></body></html>
