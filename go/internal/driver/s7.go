@@ -45,6 +45,41 @@ func (s *S7) url() string {
 }
 
 // ToPlc4xAddress converts "DB10.DBD0"/"DB10.DBX12.0" + type into PLC4X syntax "%DB10.DBD0:REAL".
+// Fixed-length strings are written "STRING[20]" in the config. plc4go's "[a..b]:STRING" means an
+// ARRAY of strings, so we read the S7 string as raw bytes (max_len, act_len, chars = n+2 bytes)
+// and decode the header ourselves.
+var sizedType = regexp.MustCompile(`^STRING\[(\d+)\]$`)
+
+func ToPlc4xAddress(addr, typ string) string {
+	a := strings.TrimSpace(addr)
+	if !strings.HasPrefix(a, "%") {
+		a = "%" + a
+	}
+	if !strings.Contains(a, ":") {
+		t := strings.ToUpper(strings.TrimSpace(typ))
+		if m := sizedType.FindStringSubmatch(t); m != nil {
+			if n, err := strconv.Atoi(m[1]); err == nil && n > 0 && n <= 254 {
+				return fmt.Sprintf("%s[0..%d]:BYTE", a, n+1)
+			}
+		}
+		a += ":" + t
+	}
+	return a
+}
+
+func (s *S7) Connected() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.conn != nil && s.conn.IsConnected()
+}
+
+func (s *S7) url() string {
+	c := s.dev.S7
+	return fmt.Sprintf("s7://%s:%d?cotp.remote-rack=%d&cotp.remote-slot=%d&read-timeout-ms=%d&cotp.connect-timeout-ms=%d&cotp.handshake-timeout-ms=%d",
+		s.dev.IP, c.Port, c.Rack, *c.Slot, c.TimeoutMS, c.TimeoutMS, c.TimeoutMS)
+}
+
+// ToPlc4xAddress converts "DB10.DBD0"/"DB10.DBX12.0" + type into PLC4X syntax "%DB10.DBD0:REAL".
 // Fixed-length strings are written "STRING[20]" in the config; plc4go now wants the length as a
 // range before the type: "%DB7.DBB6[0..19]:STRING".
 var sizedType = regexp.MustCompile(`^(W?STRING)\[(\d+)\]$`)
@@ -94,6 +129,54 @@ func (s *S7) Close() {
 	}
 	if dm != nil {
 		_ = dm.Close()
+	}
+}
+
+// convertTyped picks the Go type from the CONFIGURED S7 type. plc4go's IsBool()/IsFloat32() answer
+// true for many numeric values (they are convertible), so probing Is*() in order gives wrong types.
+func convertTyped(typ string, v values.PlcValue) any {
+	switch t := strings.ToUpper(typ); t {
+	case "BOOL":
+		return v.GetBool()
+	case "REAL":
+		return v.GetFloat32()
+	case "LREAL":
+		return v.GetFloat64()
+	case "SINT":
+		return v.GetInt8()
+	case "INT":
+		return v.GetInt16()
+	case "DINT", "TIME":
+		return v.GetInt32()
+	case "LINT":
+		return v.GetInt64()
+	case "USINT", "BYTE":
+		return v.GetUint8()
+	case "UINT", "WORD":
+		return v.GetUint16()
+	case "UDINT", "DWORD":
+		return v.GetUint32()
+	case "ULINT", "LWORD":
+		return v.GetUint64()
+	default:
+		if sizedType.MatchString(t) && v.IsList() {
+			items := v.GetList()
+			if len(items) >= 2 {
+				b := make([]byte, len(items))
+				for i, it := range items {
+					b[i] = it.GetUint8()
+				}
+				n := int(b[1])
+				if m := int(b[0]); n > m {
+					n = m
+				}
+				if n > len(b)-2 {
+					n = len(b) - 2
+				}
+				return string(b[2 : 2+n])
+			}
+		}
+		return convert(v)
 	}
 }
 
@@ -178,7 +261,7 @@ func (s *S7) Read(ctx context.Context) ([]model.Reading, error) {
 		if code := resp.GetResponseCode(t.Name); code != apiModel.PlcResponseCode_OK {
 			r.Quality, r.Error = model.Invalid, "response code "+code.String()
 		} else {
-			r.Quality, r.Value = model.Good, convert(resp.GetValue(t.Name))
+			r.Quality, r.Value = model.Good, convertTyped(types[t.Name], resp.GetValue(t.Name))
 		}
 		out = append(out, r)
 	}
