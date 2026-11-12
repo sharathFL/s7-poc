@@ -34,27 +34,23 @@ devices:
       client_key: /secrets/client_key.pem
       # server_cert: /secrets/server_cert.der   # optional pin
 
-    # Addresses assume a NON-OPTIMIZED data block DB10. Confirm against your DB layout.
-    # opcua_node: S7-1500 uses  ns=3;s="<DBName>"."<Variable>"  (namespace index varies!
-    # use GET /opcua/browse to discover the real ids).
+    # Existing DB7 "DB_MultiTypeValues". S7comm needs it NON-optimized (untick "Optimized block
+    # access"); offsets below are the standard non-optimized layout: confirm in TIA (Offset column).
+    # OPC UA works either way: use GET /opcua/browse to confirm the namespace index (ns=3 assumed).
     tags:
-      - name: Temperature
+      - name: Counter_Int
+        type: INT
+        s7_address: DB7.DBW0
+        opcua_node: 'ns=3;s="DB_MultiTypeValues"."Counter_Int"'
+      - name: Ramp_Real
         type: REAL
-        s7_address: DB10.DBD0
-        opcua_node: 'ns=3;s="PocData"."Temperature"'
-      - name: Pressure
-        type: REAL
-        s7_address: DB10.DBD4
-        opcua_node: 'ns=3;s="PocData"."Pressure"'
-      - name: MotorSpeed
-        type: REAL
-        s7_address: DB10.DBD8
-        opcua_node: 'ns=3;s="PocData"."MotorSpeed"'
-      - name: MotorRunning
+        s7_address: DB7.DBD2
+        opcua_node: 'ns=3;s="DB_MultiTypeValues"."Ramp_Real"'
+      - name: Status_String
+        type: STRING[20]
+        s7_address: DB7.DBB6
+        opcua_node: 'ns=3;s="DB_MultiTypeValues"."Status_String"'
+      - name: Tick_Bool
         type: BOOL
-        s7_address: DB10.DBX12.0
-        opcua_node: 'ns=3;s="PocData"."MotorRunning"'
-      - name: ProductionCount
-        type: DINT
-        s7_address: DB10.DBD14
-        opcua_node: 'ns=3;s="PocData"."ProductionCount"'
+        s7_address: DB7.DBX28.0
+        opcua_node: 'ns=3;s="DB_MultiTypeValues"."Tick_Bool"'
