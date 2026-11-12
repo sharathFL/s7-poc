@@ -8,6 +8,7 @@ func TestToPlc4xAddress(t *testing.T) {
 		{"DB10.DBX12.0", "bool", "%DB10.DBX12.0:BOOL"},
 		{"%DB10.DBD14", "DINT", "%DB10.DBD14:DINT"},
 		{"DB10.DBW2:INT", "INT", "%DB10.DBW2:INT"},
+		{"DB7.DBB6", "STRING[20]", "%DB7.DBB6[0..19]:STRING"},
 	}
 	for _, c := range cases {
 		if got := ToPlc4xAddress(c[0], c[1]); got != c[2] {

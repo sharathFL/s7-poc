@@ -3,6 +3,8 @@ package driver
 import (
 	"context"
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -43,13 +45,23 @@ func (s *S7) url() string {
 }
 
 // ToPlc4xAddress converts "DB10.DBD0"/"DB10.DBX12.0" + type into PLC4X syntax "%DB10.DBD0:REAL".
+// Fixed-length strings are written "STRING[20]" in the config; plc4go now wants the length as a
+// range before the type: "%DB7.DBB6[0..19]:STRING".
+var sizedType = regexp.MustCompile(`^(W?STRING)\[(\d+)\]$`)
+
 func ToPlc4xAddress(addr, typ string) string {
 	a := strings.TrimSpace(addr)
 	if !strings.HasPrefix(a, "%") {
 		a = "%" + a
 	}
 	if !strings.Contains(a, ":") {
-		a += ":" + strings.ToUpper(typ)
+		t := strings.ToUpper(strings.TrimSpace(typ))
+		if m := sizedType.FindStringSubmatch(t); m != nil {
+			if n, err := strconv.Atoi(m[2]); err == nil && n > 0 {
+				return fmt.Sprintf("%s[0..%d]:%s", a, n-1, m[1])
+			}
+		}
+		a += ":" + t
 	}
 	return a
 }

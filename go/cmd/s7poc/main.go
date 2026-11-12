@@ -9,6 +9,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/rs/zerolog"
+
 	"s7poc/internal/acq"
 	"s7poc/internal/api"
 	"s7poc/internal/config"
@@ -17,6 +19,8 @@ import (
 
 func main() {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
+	// plc4go logs every protocol frame at trace/debug via zerolog; keep warnings and errors only.
+	zerolog.SetGlobalLevel(zerolog.WarnLevel)
 	cfg, err := config.Load()
 	if err != nil {
 		slog.Error("config", "error", err)
