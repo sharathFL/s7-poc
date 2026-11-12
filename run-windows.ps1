@@ -5,7 +5,7 @@
    .\run-windows.ps1 -Config devices.sim.yaml
  Needs Python 3.11+ (3.12 recommended) from python.org. Dashboard: http://localhost:8001
 #>
-param([switch]$Mock, [string]$Config = "devices.yaml", [int]$Port = 8001)
+param([switch]$Mock, [switch]$Probe, [string]$Config = "devices.yaml", [int]$Port = 8001)
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
 
@@ -27,5 +27,6 @@ if (-not (Test-Path ".venv\.installed")) {
 $env:CONFIG_PATH = Join-Path $PSScriptRoot "config\$Config"
 $env:DASHBOARD_DIR = Join-Path $PSScriptRoot "dashboard"
 $env:S7POC_MOCK = if ($Mock) { "true" } else { "false" }
+if ($Probe) { & $vpy python\tools\s7_probe.py; exit $LASTEXITCODE }
 Write-Host "Config: $env:CONFIG_PATH  mock=$env:S7POC_MOCK  -> http://localhost:$Port"
 & $vpy -m uvicorn app.main:app --app-dir python --host 127.0.0.1 --port $Port
