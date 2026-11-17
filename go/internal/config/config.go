@@ -23,6 +23,9 @@ type S7 struct {
 	Port      int   `yaml:"port"`
 	PollingMS int   `yaml:"polling_ms"`
 	TimeoutMS int   `yaml:"timeout_ms"`
+	// ReadMode: "items" = one plc4go item per tag (default); "merged" = one byte-range item per
+	// block of nearby tags, decoded locally.
+	ReadMode string `yaml:"read_mode"`
 }
 
 type OpcUa struct {
@@ -52,6 +55,11 @@ type Device struct {
 type API struct {
 	StaleAfterFactor float64 `yaml:"stale_after_factor"`
 	HistorySize      int     `yaml:"history_size"`
+	// ReadDeadlineMS: hard cap on one driver Read, even if the library ignores its own timeout.
+	ReadDeadlineMS int `yaml:"read_deadline_ms"`
+	// ControlEnabled registers POST /devices/{id}/connection/{reconnect|disconnect}. Off by default:
+	// the API is GET-only unless this is set. These routes never write to the PLC.
+	ControlEnabled bool `yaml:"control_enabled"`
 }
 
 type Config struct {
@@ -76,12 +84,22 @@ func Parse(data []byte, forceMock bool) (*Config, error) {
 	if c.API.HistorySize <= 0 {
 		c.API.HistorySize = 500
 	}
+	if c.API.ReadDeadlineMS <= 0 {
+		c.API.ReadDeadlineMS = 10000
+	}
 	for i := range c.Devices {
 		d := &c.Devices[i]
 		if len(d.Tags) == 0 {
 			return nil, fmt.Errorf("device %s: no tags configured", d.ID)
 		}
 		d.Mock = d.Mock || forceMock
+		switch d.S7.ReadMode {
+		case "":
+			d.S7.ReadMode = "items"
+		case "items", "merged":
+		default:
+			return nil, fmt.Errorf("device %s: s7comm.read_mode must be items or merged, got %q", d.ID, d.S7.ReadMode)
+		}
 		if d.S7.Slot == nil {
 			d.S7.Slot = new(int)
 			*d.S7.Slot = 1

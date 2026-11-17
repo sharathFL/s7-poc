@@ -5,6 +5,8 @@
 api:
   stale_after_factor: 3     # reading older than factor * polling_ms => quality STALE
   history_size: 500         # readings kept in memory per tag per protocol
+  read_deadline_ms: 10000   # Go: hard cap on one read even if the library ignores its timeout
+  control_enabled: false    # Go: true enables POST /devices/{id}/connection/{reconnect|disconnect}
 
 devices:
   - id: s7_1500_01
@@ -18,6 +20,7 @@ devices:
       port: 102
       polling_ms: 1000
       timeout_ms: 3000
+      read_mode: items      # Go/PLC4X only: items (1 plc4go item per tag) | merged (1 byte-range item per DB block)
 
     opcua:
       enabled: true

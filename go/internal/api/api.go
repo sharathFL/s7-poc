@@ -1,4 +1,6 @@
-// Package api exposes the REST API. READ-ONLY: only GET routes are registered (other methods => 405).
+// Package api exposes the REST API. READ-ONLY toward the PLC: only GET routes are registered
+// (other methods => 405), except the opt-in connection-control routes (api.control_enabled) which
+// only reconnect/disconnect this service's own channels and never write PLC data.
 package api
 
 import (
@@ -28,7 +30,9 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 
-func httpErr(w http.ResponseWriter, code int, msg string) { writeJSON(w, code, map[string]string{"detail": msg}) }
+func httpErr(w http.ResponseWriter, code int, msg string) {
+	writeJSON(w, code, map[string]string{"detail": msg})
+}
 
 func (s *Server) dev(w http.ResponseWriter, r *http.Request) (string, bool) {
 	id := r.PathValue("id")
@@ -67,6 +71,37 @@ func (s *Server) Handler() http.Handler {
 		writeJSON(w, 200, map[string]any{"status": "ok", "time": model.FormatTime(time.Now()), "implementation": "go",
 			"devices": len(s.A.Devices), "channels_connected": conn, "channels_total": len(s.A.Channels)})
 	})
+	m.HandleFunc("GET /health/connection", func(w http.ResponseWriter, r *http.Request) {
+		h := s.A.ConnectionHealth()
+		code := 200
+		if r.URL.Query().Get("strict") == "1" && h["status"] != "ok" {
+			code = 503 // for load-balancer / watchdog style probes
+		}
+		writeJSON(w, code, h)
+	})
+	if s.A.ControlEnabled() {
+		m.HandleFunc("POST /devices/{id}/connection/{action}", func(w http.ResponseWriter, r *http.Request) {
+			id, ok := s.dev(w, r)
+			if !ok {
+				return
+			}
+			k, ok := kind(w, r)
+			if !ok {
+				return
+			}
+			action := r.PathValue("action")
+			if action != "reconnect" && action != "disconnect" {
+				httpErr(w, 422, "action must be reconnect or disconnect")
+				return
+			}
+			n, err := s.A.Control(id, k, action)
+			if err != nil || n == 0 {
+				httpErr(w, 404, "no matching channel")
+				return
+			}
+			writeJSON(w, 202, map[string]any{"device_id": id, "protocol": nilIfEmpty(k), "action": action, "channels": n})
+		})
+	}
 	m.HandleFunc("GET /devices", func(w http.ResponseWriter, r *http.Request) {
 		out := []map[string]any{}
 		for _, id := range s.A.Order {
@@ -206,17 +241,21 @@ func (s *Server) Handler() http.Handler {
 			http.ServeFile(w, r, filepath.Join(s.Dash, "index.html"))
 		})
 	}
-	return cors(m)
+	return cors(m, s.A.ControlEnabled())
 }
 
 // cors lets the dashboard (served from the Python app on :8001 or from here) read this API.
 // Read-only API, so only GET from localhost origins is allowed.
-func cors(next http.Handler) http.Handler {
+func cors(next http.Handler, control bool) http.Handler {
+	methods := "GET"
+	if control {
+		methods = "GET, POST"
+	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if o := r.Header.Get("Origin"); o != "" {
 			if u, err := url.Parse(o); err == nil && (u.Hostname() == "localhost" || u.Hostname() == "127.0.0.1") {
 				w.Header().Set("Access-Control-Allow-Origin", o)
-				w.Header().Set("Access-Control-Allow-Methods", "GET")
+				w.Header().Set("Access-Control-Allow-Methods", methods)
 				w.Header().Add("Vary", "Origin")
 			}
 		}

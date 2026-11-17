@@ -129,3 +129,74 @@ func TestOutageAndRecovery(t *testing.T) {
 		t.Fatal("expected a reconnect")
 	}
 }
+
+func TestConnectionHealth(t *testing.T) {
+	_, s := setup(t, driver.Factory)
+	var h map[string]any
+	if c := get(t, s.URL+"/health/connection", &h); c != 200 || h["status"] != "ok" {
+		t.Fatalf("code=%d %v", c, h)
+	}
+	rows := h["channels"].([]any)
+	if len(rows) != 2 || rows[0].(map[string]any)["state"] != "CONNECTED" {
+		t.Fatalf("%v", rows)
+	}
+	if c := get(t, s.URL+"/health/connection?strict=1", nil); c != 200 {
+		t.Fatalf("strict on healthy => %d", c)
+	}
+}
+
+func TestControlRoutesOffByDefault(t *testing.T) {
+	_, s := setup(t, driver.Factory)
+	r, err := http.Post(s.URL+"/devices/dev1/connection/reconnect", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.Body.Close()
+	if r.StatusCode != 404 && r.StatusCode != 405 {
+		t.Fatalf("control route reachable while disabled: %d", r.StatusCode)
+	}
+}
+
+func TestControlRoutesWhenEnabled(t *testing.T) {
+	cfg, err := config.Parse([]byte(yml), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.API.ControlEnabled = true
+	a := acq.New(cfg, driver.Factory)
+	a.Start(context.Background())
+	t.Cleanup(a.Stop)
+	srv := httptest.NewServer((&Server{A: a, Dash: "/nonexistent"}).Handler())
+	t.Cleanup(srv.Close)
+	time.Sleep(400 * time.Millisecond)
+
+	post := func(path string) int {
+		r, err := http.Post(srv.URL+path, "", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		r.Body.Close()
+		return r.StatusCode
+	}
+	if c := post("/devices/dev1/connection/disconnect?protocol=s7comm"); c != 202 {
+		t.Fatalf("disconnect => %d", c)
+	}
+	time.Sleep(300 * time.Millisecond)
+	var h map[string]any
+	get(t, srv.URL+"/health/connection", &h)
+	if h["status"] != "degraded" {
+		t.Fatalf("expected degraded, got %v", h["status"])
+	}
+	if c := post("/devices/dev1/connection/reconnect?protocol=s7comm"); c != 202 {
+		t.Fatalf("reconnect => %d", c)
+	}
+	if c := post("/devices/dev1/connection/explode"); c != 422 {
+		t.Fatalf("bad action => %d", c)
+	}
+	if c := post("/devices/zzz/connection/reconnect"); c != 404 {
+		t.Fatalf("unknown device => %d", c)
+	}
+	if c := post("/devices/dev1/connection/reconnect?protocol=modbus"); c != 422 {
+		t.Fatalf("bad protocol => %d", c)
+	}
+}

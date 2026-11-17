@@ -18,6 +18,7 @@ class S7Config:
     port: int = 102
     polling_ms: int = 1000
     timeout_ms: int = 3000
+    read_mode: str = "items"  # Go/PLC4X only (items | merged); accepted here so the shared YAML parses
 
 
 @dataclass

@@ -100,6 +100,23 @@ specific (S7 address; OPC UA node id, status code, source/server timestamps).
 Comparison never assumes simultaneous reads: it reports `skew_ms` and uses a tolerance. A counter can
 legitimately differ by one count between two independent samples.
 
+## Connection handling and fault harness (Go)
+
+The Go app supervises each (device, protocol) channel with a state machine:
+`CONNECTING -> CONNECTED -> BACKOFF (1s..30s exponential) -> CONNECTING ...`, plus `MANUAL_HOLD`.
+
+- `GET /health/connection` : per-channel state, last connect/disconnect, seconds since last good read,
+  consecutive failures, next retry. Overall `status` is `ok | degraded | down`; add `?strict=1`
+  for a 503 when anything is not `ok` (watchdog probes).
+- `api.read_deadline_ms` (default 10000): hard cap on one read for every driver. plc4go ignores
+  some URL timeout options, so a hung read becomes `COMM_FAILURE` + reconnect instead of freezing the channel.
+- `api.control_enabled: true` registers `POST /devices/{id}/connection/{reconnect|disconnect}[?protocol=s7comm|opcua]`.
+  `disconnect` holds the channel down (`MANUAL_HOLD`, readings `COMM_FAILURE`) until `reconnect`.
+  Off by default (the API is then GET-only). These routes never write PLC data.
+- `s7comm.read_mode: merged` (PLC4X only): tags in the same DB within 16 bytes are read as ONE
+  byte-range item and decoded locally (big-endian), instead of one plc4go item per tag. The channel
+  status shows `driver_info.read_mode` and `spans`. Compare latency against `items` on the real PLC.
+
 ## Tests
 
 ```bash

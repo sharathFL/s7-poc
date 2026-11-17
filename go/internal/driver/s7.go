@@ -25,6 +25,7 @@ type S7 struct {
 	mu   sync.Mutex
 	dm   plc4go.PlcDriverManager
 	conn plc4go.PlcConnection
+	plan *s7Plan // merged read mode: built lazily from the tag list
 }
 
 func NewS7(d config.Device) *S7 { return &S7{dev: d} }
@@ -126,20 +127,8 @@ func convertTyped(typ string, v values.PlcValue) any {
 		return v.GetUint64()
 	default:
 		if sizedType.MatchString(t) && v.IsList() {
-			items := v.GetList()
-			if len(items) >= 2 {
-				b := make([]byte, len(items))
-				for i, it := range items {
-					b[i] = it.GetUint8()
-				}
-				n := int(b[1])
-				if m := int(b[0]); n > m {
-					n = m
-				}
-				if n > len(b)-2 {
-					n = len(b) - 2
-				}
-				return string(b[2 : 2+n])
+			if b := bytesOf(v); len(b) >= 2 {
+				return decodeS7String(b)
 			}
 		}
 		return convert(v)
@@ -182,6 +171,9 @@ func (s *S7) Read(ctx context.Context) ([]model.Reading, error) {
 	s.mu.Unlock()
 	if c == nil || !c.IsConnected() {
 		return nil, fmt.Errorf("%w: S7 not connected", ErrComm)
+	}
+	if s.dev.S7.ReadMode == "merged" {
+		return s.readMerged(ctx, c)
 	}
 	rb := c.ReadRequestBuilder()
 	types := map[string]string{}

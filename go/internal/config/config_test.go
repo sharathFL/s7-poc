@@ -1,6 +1,9 @@
 package config
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 const y = `
 devices:
@@ -29,5 +32,20 @@ func TestDefaultsAndEnvSecrets(t *testing.T) {
 func TestRequiresTags(t *testing.T) {
 	if _, err := Parse([]byte("devices: [{id: a, ip: x}]"), false); err == nil {
 		t.Fatal("expected error")
+	}
+}
+
+func TestReadModeAndNewDefaults(t *testing.T) {
+	base := "devices:\n  - id: d\n    ip: 1.2.3.4\n    s7comm: {%s}\n    tags: [{name: a, type: INT, s7_address: DB1.DBW0}]\n"
+	c, err := Parse([]byte(strings.ReplaceAll(base, "%s", "")), false)
+	if err != nil || c.Devices[0].S7.ReadMode != "items" || c.API.ReadDeadlineMS != 10000 || c.API.ControlEnabled {
+		t.Fatalf("defaults: %+v %v", c, err)
+	}
+	c, err = Parse([]byte(strings.ReplaceAll(base, "%s", "read_mode: merged")), false)
+	if err != nil || c.Devices[0].S7.ReadMode != "merged" {
+		t.Fatalf("merged: %v", err)
+	}
+	if _, err = Parse([]byte(strings.ReplaceAll(base, "%s", "read_mode: bogus")), false); err == nil {
+		t.Fatal("bogus read_mode accepted")
 	}
 }
