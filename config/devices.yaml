@@ -20,7 +20,7 @@ devices:
       port: 102
       polling_ms: 1000
       timeout_ms: 3000
-      read_mode: items      # Go/PLC4X only: items (1 plc4go item per tag) | merged (1 byte-range item per DB block)
+      read_mode: merged      # Go/PLC4X only: items (1 plc4go item per tag) | merged (1 byte-range item per DB block)
 
     opcua:
       enabled: true
