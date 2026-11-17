@@ -1,0 +1,61 @@
+# FAULT-HARNESS config: identical to devices.yaml but every PLC connection goes through the
+# fault proxy (python/tools/fault_proxy.py: S7 127.0.0.1:1102, OPC UA 127.0.0.1:14840).
+# The proxy forwards to the real PLC (--plc). Apps started with this config never touch the PLC directly.
+# Secrets (passwords, private keys) are NOT stored here: see README "Secrets".
+# Set `mock: true` (or env S7POC_MOCK=true) to run with simulated data and no PLC.
+
+api:
+  stale_after_factor: 3     # reading older than factor * polling_ms => quality STALE
+  history_size: 500         # readings kept in memory per tag per protocol
+  read_deadline_ms: 10000   # Go: hard cap on one read even if the library ignores its timeout
+  control_enabled: true     # Go: true enables POST /devices/{id}/connection/{reconnect|disconnect}
+
+devices:
+  - id: s7_1500_01
+    ip: 127.0.0.1           # the fault proxy (it forwards to the PLC)
+    mock: false
+
+    s7comm:
+      enabled: true
+      rack: 0               # S7-1500: rack 0, slot 1 (use slot 0 if connection is refused)
+      slot: 1
+      port: 1102            # proxy listener -> PLC :102
+      polling_ms: 1000
+      timeout_ms: 3000
+      read_mode: items      # Go/PLC4X only: items (1 plc4go item per tag) | merged (1 byte-range item per DB block)
+
+    opcua:
+      enabled: true
+      endpoint: opc.tcp://127.0.0.1:14840   # proxy listener -> PLC :4840
+      polling_ms: 1000
+      timeout_ms: 4000
+      mode: poll                 # poll | subscribe   (subscribe: Python only)
+      # Start with None to prove connectivity, then switch to a secure policy.
+      security_mode: None        # None | Sign | SignAndEncrypt
+      security_policy: None      # None | Basic256Sha256 | Aes128_Sha256_RsaOaep | ...
+      # Credentials come from env OPCUA_USERNAME / OPCUA_PASSWORD (see README).
+      # Client certificate + key: files under ./secrets mounted at /secrets
+      client_cert: /secrets/client_cert.der
+      client_key: /secrets/client_key.pem
+      # server_cert: /secrets/server_cert.der   # optional pin
+
+    # Existing DB7 "DB_MultiTypeValues". S7comm needs it NON-optimized (untick "Optimized block
+    # access"); offsets below are the standard non-optimized layout: confirm in TIA (Offset column).
+    # OPC UA works either way: use GET /opcua/browse to confirm the namespace index (ns=3 assumed).
+    tags:
+      - name: Counter_Int
+        type: INT
+        s7_address: DB7.DBW0
+        opcua_node: 'ns=3;s="DB_MultiTypeValues"."Counter_Int"'
+      - name: Ramp_Real
+        type: REAL
+        s7_address: DB7.DBD2
+        opcua_node: 'ns=3;s="DB_MultiTypeValues"."Ramp_Real"'
+      - name: Status_String
+        type: STRING[20]
+        s7_address: DB7.DBB6
+        opcua_node: 'ns=3;s="DB_MultiTypeValues"."Status_String"'
+      - name: Tick_Bool
+        type: BOOL
+        s7_address: DB7.DBX28.0
+        opcua_node: 'ns=3;s="DB_MultiTypeValues"."Tick_Bool"'

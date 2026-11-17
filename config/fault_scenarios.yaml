@@ -1,0 +1,22 @@
+# Fault scenarios for python/tools/fault_scenarios.py (play them against tools/fault_proxy.py).
+# A scenario is: warmup (proxy normal) -> steps (each: proxy mode for N seconds) -> wait for recovery.
+# Modes: normal | blacksink | reset | refuse | delay (+ delay_ms)
+defaults:
+  warmup_s: 15            # healthy time before the fault (baseline must be all-GOOD)
+  detect_within_s: 15     # PASS if the app leaves GOOD within this long after the fault starts
+  recover_within_s: 45    # PASS if back to stable GOOD within this long after the fault ends
+  recover_timeout_s: 60   # how long to wait for recovery before giving up
+  max_good_age_s: 4       # a GOOD reading older than this = stale data reported as good = FAIL
+
+scenarios:
+  - {name: blacksink_20s, mode: blacksink, fault_s: 20}   # link silently dead: only app timeouts can notice
+  - {name: reset_10s,     mode: reset,     fault_s: 10}   # TCP RST on every connection
+  - {name: refuse_20s,    mode: refuse,    fault_s: 20}   # PLC "off": connection refused
+  - {name: delay_500ms,   mode: delay,     fault_s: 15, delay_ms: 500, expect_detect: false}  # slow but alive: must stay GOOD
+  - name: flap_reset_x3                                   # 3 short drops: recovery every time
+    steps:
+      - {mode: reset,  for_s: 4}
+      - {mode: normal, for_s: 12}
+      - {mode: reset,  for_s: 4}
+      - {mode: normal, for_s: 12}
+      - {mode: reset,  for_s: 4}

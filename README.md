@@ -117,6 +117,20 @@ The Go app supervises each (device, protocol) channel with a state machine:
   byte-range item and decoded locally (big-endian), instead of one plc4go item per tag. The channel
   status shows `driver_info.read_mode` and `spans`. Compare latency against `items` on the real PLC.
 
+## Fault harness: what happens when the PLC disconnects
+
+`python/tools/fault_proxy.py` is a TCP relay between the apps and the PLC that you can switch at any
+time: `normal`, `blacksink` (connection stays open but every byte is silently dropped: a half-open
+link only the app's own timeouts can detect), `reset` (TCP RST), `refuse` (connection refused),
+`delay` (+N ms). `python/tools/fault_scenarios.py` plays the timelines in `config/fault_scenarios.yaml`
+(warmup, fault steps, recovery) and scores each app/protocol: time to detect, time to recover,
+stale data reported as GOOD, flaps. It prints PASS/FAIL and writes `reports/fault-*.json`.
+
+Three windows (see `run-fault-harness.ps1` header): `-Proxy`; the app(s) with `-Config devices.fault.yaml`
+(which points them at the proxy); then `-Run`. Manual fault: `.\run-fault-harness.ps1 -Mode blacksink`.
+Check the proxy status (`-Status`) shows `accepted > 0` on both listeners: if OPC UA shows 0, the OPC UA
+client bypassed the proxy (it may follow the endpoint URL the server advertises).
+
 ## Tests
 
 ```bash
