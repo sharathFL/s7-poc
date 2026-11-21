@@ -35,11 +35,65 @@ def plan(tags, max_span):
     return out
 
 
+def scan(ip: str, port: int) -> int:
+    """Try rack/slot combinations and report which ones the CPU accepts. A wrong rack/slot makes most
+    CPUs reset the connection during the handshake (WinError 10054), so this finds the right pair."""
+    import snap7
+    print(f"scan: {ip}:{port}  rack 0-1 x slot 0-5 (5 s per try, one connection at a time)")
+    found = []
+    for rack in (0, 1):
+        for slot in (2, 3, 1, 0, 4, 5):
+            res: dict = {}
+
+            def work() -> None:
+                c = snap7.client.Client()
+                try:
+                    c.connect(ip, rack, slot, port)
+                    res["ok"] = True
+                    try:
+                        info = c.get_cpu_info()
+                        res["cpu"] = f"{getattr(info, 'ModuleTypeName', b'')!r} {getattr(info, 'ModuleName', b'')!r}"
+                    except Exception as e:  # noqa: BLE001
+                        res["cpu"] = f"(cpu info failed: {e})"
+                    try:
+                        c.db_read(1, 0, 2)
+                        res["db1"] = "DB1 readable"
+                    except Exception as e:  # noqa: BLE001
+                        res["db1"] = f"DB1 read failed: {e}"
+                except Exception as e:  # noqa: BLE001
+                    res["err"] = f"{type(e).__name__}: {e}"
+                finally:
+                    try:
+                        c.disconnect()
+                    except Exception:  # noqa: BLE001
+                        pass
+
+            th = threading.Thread(target=work, daemon=True)
+            th.start()
+            th.join(5)
+            if th.is_alive():
+                print(f"  rack={rack} slot={slot}: HANG")
+            elif res.get("ok"):
+                print(f"  rack={rack} slot={slot}: CONNECTED  {res.get('cpu')}  {res.get('db1')}")
+                found.append((rack, slot))
+            else:
+                print(f"  rack={rack} slot={slot}: {res.get('err')}")
+            time.sleep(0.7)  # let the CPU free the connection resource before the next try
+    if found:
+        print(f"RESULT: accepted rack/slot: {found} -> set rack/slot in the config")
+        return 0
+    print("RESULT: no rack/slot accepted. Other causes: all CPU connection resources in use (stop other S7 clients, "
+          "close TIA/STEP7 online views), access protection on the CPU, or a CP/other interface than X5 (try 192.168.2.4).")
+    return 1
+
+
 def main() -> int:
     cfg = yaml.safe_load(open(os.environ["CONFIG_PATH"], encoding="utf-8"))
     dev = cfg["devices"][0]
     s7 = dev.get("s7comm") or {}
     ip, rack, slot, port = dev["ip"], s7.get("rack", 0), s7.get("slot", 1), s7.get("port", 102)
+    if "--scan" in sys.argv:
+        return scan(ip, port)
     blocks = plan(dev["tags"], int(s7.get("max_span", 200)))
     print(f"probe: {dev['id']} {ip} rack={rack} slot={slot} port={port}")
     for db, spans in blocks.items():
