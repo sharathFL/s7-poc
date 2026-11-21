@@ -4,7 +4,7 @@
 #             .\run-windows.ps1 -Config devices.s7-400.yaml -Probe (one-shot read of every tag, 10 s timeout)
 # Stop other apps that talk to this PLC first: S7-400 CPUs allow only a few S7 connections.
 #
-# Source: "S7400-AS410 Kit" DB1 address map (s7-400_table_many/DB1_DataDB.xlsx): rack 0 slot 2,
+# Source: "S7400-AS410 Kit" DB1 address map (s7-400_table_many/DB1_DataDB.xlsx): rack 0 (the map says slot 2, but -Scan found the CPU on slot 3),
 # interface X5 = 192.168.1.4. "simulated" tags change in the PLC, "free" tags are spare (expect 0).
 # S7-400 DBs are classic data blocks. Only data-block addresses are supported
 # (DB<n>.DB<X|B|W|D><offset>). All 36 tags sit in DB1 bytes 2..59, so merged mode = ONE 58-byte read.
@@ -22,8 +22,8 @@ devices:
 
     s7comm:
       enabled: true
-      rack: 0               # S7-400: CPU is usually in rack 0 ...
-      slot: 2               # ... slot 2 (confirmed by the address map). Try 3 only if refused.
+      rack: 0               # S7-400: CPU in rack 0 ...
+      slot: 3               # CONFIRMED by -Scan: CPU 410-5H answers on rack 0 slot 3 (and slot 0). The address map said 2: wrong.
       port: 102
       polling_ms: 1000
       timeout_ms: 3000
