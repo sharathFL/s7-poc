@@ -1,0 +1,72 @@
+# S7-400 at 192.168.1.4, S7comm only (an S7-400 has no built-in OPC UA server).
+# Used with:  .\run-windows.ps1 -Config devices.s7-400.yaml        (Python / Snap7)
+#             .\run-windows-go.ps1 -Config devices.s7-400.yaml     (Go / PLC4X)
+#             .\run-windows.ps1 -Config devices.s7-400.yaml -Probe (one-shot read of every tag, 10 s timeout)
+# Stop other apps that talk to this PLC first: S7-400 CPUs allow only a few S7 connections.
+#
+# Source: "S7400-AS410 Kit" DB1 address map (s7-400_table_many/DB1_DataDB.xlsx): rack 0 slot 2,
+# interface X5 = 192.168.1.4. "simulated" tags change in the PLC, "free" tags are spare (expect 0).
+# S7-400 DBs are classic data blocks. Only data-block addresses are supported
+# (DB<n>.DB<X|B|W|D><offset>). All 36 tags sit in DB1 bytes 2..59, so merged mode = ONE 58-byte read.
+
+api:
+  stale_after_factor: 3
+  history_size: 500
+  read_deadline_ms: 10000
+  control_enabled: false
+
+devices:
+  - id: s7_400_01
+    ip: 192.168.1.4
+    mock: false
+
+    s7comm:
+      enabled: true
+      rack: 0               # S7-400: CPU is usually in rack 0 ...
+      slot: 2               # ... slot 2 (confirmed by the address map). Try 3 only if refused.
+      port: 102
+      polling_ms: 1000
+      timeout_ms: 3000
+      max_span: 200         # S7-400 PDU is 240 or 480 bytes: keep block reads well below it
+      read_mode: merged     # Go/PLC4X: merged = 1 block read; items = 36 separate items (may exceed the 240/480-byte PDU)
+
+    opcua:
+      enabled: false        # no OPC UA on an S7-400
+
+    tags:                   # generated from s7-400_table_many/DB1_DataDB.xlsx (DB_VAR @DBW0 'Not Used' skipped)
+      - {name: Tag_Bit_0, type: BOOL, s7_address: DB1.DBX2.0}     # simulated
+      - {name: Tag_Bit_1, type: BOOL, s7_address: DB1.DBX2.1}     # simulated
+      - {name: Tag_Bit_2, type: BOOL, s7_address: DB1.DBX2.2}     # simulated
+      - {name: Tag_Bit_3, type: BOOL, s7_address: DB1.DBX2.3}     # simulated
+      - {name: Tag_Bit_4, type: BOOL, s7_address: DB1.DBX2.4}     # simulated
+      - {name: Tag_Bit_5, type: BOOL, s7_address: DB1.DBX2.5}     # simulated
+      - {name: Tag_Bit_6, type: BOOL, s7_address: DB1.DBX2.6}     # simulated
+      - {name: Tag_Bit_7, type: BOOL, s7_address: DB1.DBX2.7}     # simulated
+      - {name: Tag_Bit_8, type: BOOL, s7_address: DB1.DBX3.0}     # free
+      - {name: Tag_Bit_9, type: BOOL, s7_address: DB1.DBX3.1}     # free
+      - {name: Tag_Bit_10, type: BOOL, s7_address: DB1.DBX3.2}    # free
+      - {name: Tag_Bit_11, type: BOOL, s7_address: DB1.DBX3.3}    # free
+      - {name: Tag_Bit_12, type: BOOL, s7_address: DB1.DBX3.4}    # free
+      - {name: Tag_Bit_13, type: BOOL, s7_address: DB1.DBX3.5}    # free
+      - {name: Tag_Bit_14, type: BOOL, s7_address: DB1.DBX3.6}    # free
+      - {name: Tag_Bit_15, type: BOOL, s7_address: DB1.DBX3.7}    # free
+      - {name: Tag_Byte_0, type: BYTE, s7_address: DB1.DBB4}      # simulated
+      - {name: Tag_Byte_1, type: BYTE, s7_address: DB1.DBB5}      # free
+      - {name: Tag_Byte_2, type: BYTE, s7_address: DB1.DBB6}      # free
+      - {name: Tag_Byte_3, type: BYTE, s7_address: DB1.DBB7}      # free
+      - {name: Tag_Byte_4, type: BYTE, s7_address: DB1.DBB8}      # free
+      - {name: Tag_Int_0, type: INT, s7_address: DB1.DBW10}       # simulated
+      - {name: Tag_Int_1, type: INT, s7_address: DB1.DBW12}       # free
+      - {name: Tag_Int_2, type: INT, s7_address: DB1.DBW14}       # free
+      - {name: Tag_Int_3, type: INT, s7_address: DB1.DBW16}       # free
+      - {name: Tag_Int_4, type: INT, s7_address: DB1.DBW18}       # free
+      - {name: Tag_Dint_0, type: DINT, s7_address: DB1.DBD20}     # simulated
+      - {name: Tag_Dint_1, type: DINT, s7_address: DB1.DBD24}     # free
+      - {name: Tag_Dint_2, type: DINT, s7_address: DB1.DBD28}     # free
+      - {name: Tag_Dint_3, type: DINT, s7_address: DB1.DBD32}     # free
+      - {name: Tag_Dint_4, type: DINT, s7_address: DB1.DBD36}     # free
+      - {name: Tag_Real_Float_0, type: REAL, s7_address: DB1.DBD40}# simulated
+      - {name: Tag_Real_Float_1, type: REAL, s7_address: DB1.DBD44}# free
+      - {name: Tag_Real_Float_2, type: REAL, s7_address: DB1.DBD48}# free
+      - {name: Tag_Real_Float_3, type: REAL, s7_address: DB1.DBD52}# free
+      - {name: Tag_Real_Float_4, type: REAL, s7_address: DB1.DBD56}# free

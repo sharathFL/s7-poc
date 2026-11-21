@@ -26,6 +26,9 @@ type S7 struct {
 	// ReadMode: "items" = one plc4go item per tag (default); "merged" = one byte-range item per
 	// block of nearby tags, decoded locally.
 	ReadMode string `yaml:"read_mode"`
+	// MaxSpan: largest byte range of one merged read. Must fit the PDU negotiated with the CPU
+	// (S7-400/300: 240 or 480 bytes, S7-1500: 960). Default 200 is safe everywhere.
+	MaxSpan int `yaml:"max_span"`
 }
 
 type OpcUa struct {
@@ -93,6 +96,9 @@ func Parse(data []byte, forceMock bool) (*Config, error) {
 			return nil, fmt.Errorf("device %s: no tags configured", d.ID)
 		}
 		d.Mock = d.Mock || forceMock
+		if d.S7.MaxSpan <= 0 {
+			d.S7.MaxSpan = 200
+		}
 		switch d.S7.ReadMode {
 		case "":
 			d.S7.ReadMode = "items"

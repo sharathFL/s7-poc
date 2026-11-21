@@ -38,7 +38,7 @@ func TestRequiresTags(t *testing.T) {
 func TestReadModeAndNewDefaults(t *testing.T) {
 	base := "devices:\n  - id: d\n    ip: 1.2.3.4\n    s7comm: {%s}\n    tags: [{name: a, type: INT, s7_address: DB1.DBW0}]\n"
 	c, err := Parse([]byte(strings.ReplaceAll(base, "%s", "")), false)
-	if err != nil || c.Devices[0].S7.ReadMode != "items" || c.API.ReadDeadlineMS != 10000 || c.API.ControlEnabled {
+	if err != nil || c.Devices[0].S7.MaxSpan != 200 || c.Devices[0].S7.ReadMode != "items" || c.API.ReadDeadlineMS != 10000 || c.API.ControlEnabled {
 		t.Fatalf("defaults: %+v %v", c, err)
 	}
 	c, err = Parse([]byte(strings.ReplaceAll(base, "%s", "read_mode: merged")), false)

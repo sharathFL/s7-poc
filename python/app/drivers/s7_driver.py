@@ -12,7 +12,7 @@ from ..s7types import AddressError, S7Address, byte_length, decode, parse_addres
 from .base import Driver, DriverError
 
 log = logging.getLogger("s7driver")
-MAX_SPAN = 200  # bytes; coalesce tags of one DB into one request when they fit
+# block-read span limit is device.s7.max_span (default 200 bytes)
 
 
 class S7Driver(Driver):
@@ -76,7 +76,7 @@ class S7Driver(Driver):
             groups: list[list] = []
             for it in items:
                 end = it[2].byte + byte_length(it[1])
-                if groups and end - groups[-1][0][2].byte <= MAX_SPAN:
+                if groups and end - groups[-1][0][2].byte <= self.cfg.max_span:
                     groups[-1].append(it)
                 else:
                     groups.append([it])

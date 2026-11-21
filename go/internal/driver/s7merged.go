@@ -48,7 +48,7 @@ func (s *S7) readMerged(ctx context.Context, c plc4go.PlcConnection) ([]model.Re
 	s.mu.Unlock()
 	if p == nil {
 		var err error
-		if p, err = buildPlan(s.dev.Tags); err != nil {
+		if p, err = buildPlan(s.dev.Tags, s.dev.S7.MaxSpan); err != nil {
 			return nil, fmt.Errorf("invalid S7 tag configuration: %w", err)
 		}
 		s.mu.Lock()

@@ -38,7 +38,7 @@ func db7Tags() []config.Tag {
 }
 
 func TestBuildPlanDB7OneSpan(t *testing.T) {
-	p, err := buildPlan(db7Tags())
+	p, err := buildPlan(db7Tags(), 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +61,7 @@ func TestBuildPlanSplitsByDBGapAndSize(t *testing.T) {
 		{Name: "c", Type: "INT", S7Address: "DB1.DBW100"}, // gap > mergeGap
 		{Name: "d", Type: "INT", S7Address: "DB1.DBW102"}, // joins c
 	}
-	p, err := buildPlan(tags)
+	p, err := buildPlan(tags, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,12 +76,12 @@ func TestBuildPlanSplitsByDBGapAndSize(t *testing.T) {
 	for i := 0; i < 400; i++ {
 		many = append(many, config.Tag{Name: "t", Type: "DINT", S7Address: "DB1.DBD" + itoa(i*4)})
 	}
-	p, err = buildPlan(many)
+	p, err = buildPlan(many, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, sp := range p.spans {
-		if sp.length > maxSpan {
+		if sp.length > defaultMaxSpan {
 			t.Fatalf("span too long: %d", sp.length)
 		}
 	}
@@ -102,10 +102,10 @@ func itoa(i int) string {
 }
 
 func TestBuildPlanRejectsBad(t *testing.T) {
-	if _, err := buildPlan([]config.Tag{{Name: "x", Type: "INT", S7Address: "M0.0"}}); err == nil {
+	if _, err := buildPlan([]config.Tag{{Name: "x", Type: "INT", S7Address: "M0.0"}}, 0); err == nil {
 		t.Fatal("bad address accepted")
 	}
-	if _, err := buildPlan([]config.Tag{{Name: "x", Type: "WSTRING", S7Address: "DB1.DBW0"}}); err == nil {
+	if _, err := buildPlan([]config.Tag{{Name: "x", Type: "WSTRING", S7Address: "DB1.DBW0"}}, 0); err == nil {
 		t.Fatal("bad type accepted")
 	}
 }
@@ -118,7 +118,7 @@ func TestDecodeDB7Image(t *testing.T) {
 	copy(buf[8:], "IDLE")
 	buf[28] = 0x01 // bit 0 set
 
-	p, _ := buildPlan(db7Tags())
+	p, _ := buildPlan(db7Tags(), 0)
 	got := map[string]any{}
 	for _, m := range p.spans[0].members {
 		v, err := decodeS7(m.typ, buf[m.rel:m.rel+m.size], m.bit)
@@ -161,5 +161,20 @@ func TestDecodeTypes(t *testing.T) {
 	}
 	if _, err := decodeS7("INT", []byte{1}, 0); err == nil {
 		t.Fatal("short buffer accepted")
+	}
+}
+
+func TestBuildPlanHonoursConfiguredMaxSpan(t *testing.T) {
+	tags := []config.Tag{
+		{Name: "a", Type: "DINT", S7Address: "DB1.DBD0"},
+		{Name: "b", Type: "DINT", S7Address: "DB1.DBD8"}, // would merge by gap, but span 12 > 8
+	}
+	p, err := buildPlan(tags, 8)
+	if err != nil || len(p.spans) != 2 {
+		t.Fatalf("max_span=8 should split: %v %+v", err, p)
+	}
+	p, _ = buildPlan(tags, 0)
+	if len(p.spans) != 1 {
+		t.Fatalf("default should merge: %+v", p)
 	}
 }

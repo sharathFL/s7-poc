@@ -20,6 +20,7 @@ devices:
       port: 102
       polling_ms: 1000
       timeout_ms: 3000
+      max_span: 200         # bytes per block read; must fit the CPU PDU (S7-400/300: 240/480, S7-1500: 960)
       read_mode: merged      # Go/PLC4X only: items (1 plc4go item per tag) | merged (1 byte-range item per DB block)
 
     opcua:

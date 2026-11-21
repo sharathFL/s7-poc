@@ -16,8 +16,8 @@ import (
 // same DB are fetched with ONE byte-range item and decoded locally (S7 is big-endian).
 
 const (
-	mergeGap = 16  // bytes: tags closer than this are read in one span (wasted bytes < extra item)
-	maxSpan  = 900 // bytes per span: S7-1500 PDU is 960, minus S7 header/item overhead
+	mergeGap       = 16  // bytes: tags closer than this are read in one span (wasted bytes < extra item)
+	defaultMaxSpan = 200 // bytes per span when the config gives none (fits every S7 PDU, incl. S7-400/300)
 )
 
 var s7AddrRe = regexp.MustCompile(`(?i)^%?DB(\d+)\.DB([XBWD])(\d+)(?:\.(\d+))?$`)
@@ -150,8 +150,12 @@ func (sp s7Span) address() string {
 
 type s7Plan struct{ spans []s7Span }
 
-// buildPlan groups the S7 tags into spans: same DB, gap <= mergeGap, span <= maxSpan.
-func buildPlan(tags []config.Tag) (*s7Plan, error) {
+// buildPlan groups the S7 tags into spans: same DB, gap <= mergeGap, span <= maxSpan (config
+// s7comm.max_span; must fit the PDU negotiated with the CPU).
+func buildPlan(tags []config.Tag, maxSpan int) (*s7Plan, error) {
+	if maxSpan <= 0 {
+		maxSpan = defaultMaxSpan
+	}
 	type item struct {
 		tag  config.Tag
 		typ  string
